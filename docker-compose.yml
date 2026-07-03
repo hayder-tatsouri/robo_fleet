@@ -1,0 +1,52 @@
+# Robo_Fleet - Docker Compose for ROS2 Simulation
+# Usage: docker compose up
+
+services:
+  # ROS2 + Gazebo + Nav2 simulation
+  ros2_sim:
+    image: osrf/ros:humble-desktop-full
+    container_name: robo_fleet_sim
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - TURTLEBOT3_MODEL=burger
+      - ROS_DOMAIN_ID=0
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ./robot_ws:/root/robot_ws
+    network_mode: host
+    command: >
+      bash -c "
+        source /opt/ros/humble/setup.bash &&
+        apt-get update && apt-get install -y ros-humble-nav2-bringup ros-humble-turtlebot3* ros-humble-rosbridge-suite &&
+        cd /root/robot_ws && colcon build --symlink-install &&
+        source install/setup.bash &&
+        ros2 launch tb3_multi_robot multi_robot_world.launch.py
+      "
+
+  # Rosbridge WebSocket server
+  rosbridge:
+    image: osrf/ros:humble-desktop-full
+    container_name: robo_fleet_bridge
+    depends_on:
+      - ros2_sim
+    network_mode: host
+    command: >
+      bash -c "
+        source /opt/ros/humble/setup.bash &&
+        apt-get update && apt-get install -y ros-humble-rosbridge-suite &&
+        ros2 launch rosbridge_server rosbridge_websocket_launch.xml port:=9090
+      "
+
+  # MCP Server
+  mcp_server:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    container_name: robo_fleet_mcp
+    depends_on:
+      - rosbridge
+    network_mode: host
+    volumes:
+      - ./mcp_server:/app
+    working_dir: /app
+    command: python index.py

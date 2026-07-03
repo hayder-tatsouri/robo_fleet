@@ -1,0 +1,12 @@
+.vscode/
+**/.vscode/
+**/__pycache__/
+*.pyc
+
+mcp_server/mcp_env/
+
+robot_ws/build/
+robot_ws/install/
+robot_ws/log/
+.venv/
+.versions/

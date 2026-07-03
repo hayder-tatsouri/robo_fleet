@@ -1,0 +1,28 @@
+# Robo_Fleet - Dependencies
+# Works on macOS and Linux with just: pip install -r requirements.txt
+
+# MCP Server
+mcp[cli]>=1.0.0
+
+# WebSocket (client for ROS bridge communication)
+websocket-client>=1.6.0
+
+# WebSocket (server for mock rosbridge)
+websockets>=12.0
+
+# Server framework
+uvicorn>=0.29.0
+starlette>=0.37.0
+httpx>=0.27.0
+sse-starlette>=2.0.0
+
+# Data validation
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# Utilities
+numpy>=1.26.0
+python-dotenv>=1.0.0
+
+# Testing
+pytest>=7.0.0

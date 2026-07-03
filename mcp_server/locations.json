@@ -1,0 +1,42 @@
+{
+  "origin": {
+    "x": 0.0,
+    "y": 0.0,
+    "description": "Map origin (0, 0)"
+  },
+  "charging_station": {
+    "x": 0.0,
+    "y": 0.0,
+    "description": "Charging dock at origin"
+  },
+  "warehouse": {
+    "x": 1.0,
+    "y": 1.0,
+    "description": "Warehouse area"
+  },
+  "dock": {
+    "x": -1.0,
+    "y": 0.0,
+    "description": "Loading dock"
+  },
+  "entrance": {
+    "x": 0.0,
+    "y": 1.0,
+    "description": "Main entrance"
+  },
+  "storage": {
+    "x": -1.0,
+    "y": -1.0,
+    "description": "Storage room"
+  },
+  "workstation_a": {
+    "x": 1.0,
+    "y": -0.5,
+    "description": "Workstation A"
+  },
+  "workstation_b": {
+    "x": -0.5,
+    "y": 0.5,
+    "description": "Workstation B"
+  }
+}
