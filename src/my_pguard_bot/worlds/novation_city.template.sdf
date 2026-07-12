@@ -1,0 +1,116 @@
+<?xml version="1.0" ?>
+<!--
+  Novation City / Technopole de Sousse, Tunisia.
+  Origin: 35.8173 N, 10.5912 E, elevation ~50 m.
+  Buildings and roads imported from OpenStreetMap (scripts/fetch_osm.py).
+  Rerun that script to refresh sousse_buildings.sdf.
+-->
+<sdf version="1.10">
+  <world name="novation_city">
+
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system"
+            name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system"
+            name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system"
+            name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system"
+            name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-imu-system"
+            name="gz::sim::systems::Imu"/>
+    <plugin filename="gz-sim-navsat-system"
+            name="gz::sim::systems::NavSat"/>
+
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>35.8173</latitude_deg>
+      <longitude_deg>10.5912</longitude_deg>
+      <elevation>50.0</elevation>
+      <heading_deg>0</heading_deg>
+    </spherical_coordinates>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 30 0 0 0</pose>
+      <direction>-0.4 -0.2 -0.9</direction>
+      <diffuse>1.0 0.98 0.90 1</diffuse>
+      <specular>0.3 0.3 0.3 1</specular>
+    </light>
+
+    <scene>
+      <ambient>0.55 0.55 0.55 1</ambient>
+      <background>0.60 0.75 0.90 1</background>
+      <shadows>true</shadows>
+    </scene>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>2000 2000</size></plane></geometry>
+          <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction></surface>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>2000 2000</size></plane></geometry>
+          <material>
+            <ambient>0.55 0.50 0.35 1</ambient>
+            <diffuse>0.65 0.60 0.42 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- OSM-imported buildings and road pavement (inlined by scripts/build_world.py) -->
+
+    <!-- Fixed world cameras for headless screenshot capture. -->
+    <model name="chase_cam">
+      <static>true</static>
+      <!-- Sit 15 m SW of the robot spawn, 6 m up, look NE toward the robot + Technopole buildings. -->
+      <pose>-15 -12 6   0 0.35 0.7</pose>
+      <link name="link">
+        <sensor name="chase_camera" type="camera">
+          <always_on>1</always_on>
+          <update_rate>2</update_rate>
+          <topic>world_cam/chase</topic>
+          <gz_frame_id>world</gz_frame_id>
+          <camera>
+            <horizontal_fov>1.4</horizontal_fov>
+            <image><width>960</width><height>540</height><format>R8G8B8</format></image>
+            <clip><near>0.1</near><far>2000.0</far></clip>
+          </camera>
+        </sensor>
+      </link>
+    </model>
+
+    <model name="top_cam">
+      <static>true</static>
+      <!-- Positioned to cover the whole Novation City block (~300 m). Pointed
+           straight down. Robot is at (0,0,0); the block extends mostly south
+           and east so we offset the camera slightly to centre the whole park. -->
+      <pose>-30 40 220   0 1.5707 0</pose>
+      <link name="link">
+        <sensor name="top_camera" type="camera">
+          <always_on>1</always_on>
+          <update_rate>2</update_rate>
+          <topic>world_cam/top</topic>
+          <gz_frame_id>world</gz_frame_id>
+          <camera>
+            <horizontal_fov>1.30</horizontal_fov>
+            <image><width>1024</width><height>1024</height><format>R8G8B8</format></image>
+            <clip><near>0.1</near><far>2000.0</far></clip>
+          </camera>
+        </sensor>
+      </link>
+    </model>
+
+    <!-- BUILDINGS_HERE -->
+  </world>
+</sdf>

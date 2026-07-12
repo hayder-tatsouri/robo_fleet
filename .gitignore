@@ -10,3 +10,17 @@ robot_ws/install/
 robot_ws/log/
 .venv/
 .versions/
+
+# Colcon workspace build outputs (added when merged with the outdoor sim tree)
+build/
+install/
+log/
+
+# Generated URDF (regenerated from xacro at build time)
+src/my_pguard_bot/urdf/*.urdf
+
+# Local core dumps
+core.*
+
+# macOS metadata
+.DS_Store

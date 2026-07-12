@@ -1,0 +1,209 @@
+<?xml version="1.0" ?>
+<!--
+  Enova Robotics PGuard-class outdoor security robot.
+
+  Physical specification (from Enova Robotics product page):
+    L x W x H : 1.50 m x 1.10 m x 1.60 m
+    Mass      : 250 kg (total incl. payload)
+    Drive     : 4 electric motors, 4 driven wheels (skid-steer)
+    Max speed : 12 km/h ~ 3.33 m/s
+    Climb     : 20 cm obstacle, 25 deg incline
+
+  Sensors modelled here:
+    * RTK GNSS (~2 cm horizontal stddev) at gps_link (top-rear of chassis)
+    * IMU 100 Hz at imu_link (chassis center)
+    * 4 short-range ultrasonic rangefinders (front/rear/left/right) as the
+      obstacle-detection surrogate. The real PGuard uses vision + ultrasonics;
+      full 4-camera coverage is out of scope for this headless build.
+
+  Frame convention: base_footprint (ground projection) -> base_link (chassis
+  centroid, elevated by wheel_radius).
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="pguard">
+
+  <xacro:property name="base_length" value="1.50"/>
+  <xacro:property name="base_width"  value="1.10"/>
+  <xacro:property name="base_height" value="1.10"/>   <!-- chassis box; turret adds another 0.5 m -->
+  <xacro:property name="turret_height" value="0.50"/>
+  <xacro:property name="base_mass"   value="220.0"/>   <!-- chassis + battery -->
+  <xacro:property name="turret_mass" value="10.0"/>
+
+  <xacro:property name="wheel_radius" value="0.25"/>   <!-- 50 cm diameter, so 20 cm obstacle climb is plausible -->
+  <xacro:property name="wheel_width"  value="0.20"/>
+  <xacro:property name="wheel_mass"   value="5.0"/>
+  <xacro:property name="wheel_sep_y"  value="1.05"/>   <!-- lateral spacing -->
+  <xacro:property name="wheel_sep_x"  value="1.00"/>   <!-- longitudinal spacing (front-rear) -->
+
+  <xacro:macro name="box_inertia" params="m x y z">
+    <inertia ixx="${m*(y*y + z*z)/12.0}" ixy="0" ixz="0"
+             iyy="${m*(x*x + z*z)/12.0}" iyz="0"
+             izz="${m*(x*x + y*y)/12.0}"/>
+  </xacro:macro>
+
+  <xacro:macro name="cylinder_inertia" params="m r h">
+    <inertia ixx="${m*(3*r*r + h*h)/12.0}" ixy="0" ixz="0"
+             iyy="${m*(3*r*r + h*h)/12.0}" iyz="0"
+             izz="${m*r*r/2.0}"/>
+  </xacro:macro>
+
+  <link name="base_footprint"/>
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child  link="base_link"/>
+    <origin xyz="0 0 ${wheel_radius}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 ${base_height/2}"/>
+      <geometry><box size="${base_length} ${base_width} ${base_height}"/></geometry>
+      <material name="pguard_black"><color rgba="0.12 0.12 0.14 1"/></material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${base_height/2}"/>
+      <geometry><box size="${base_length} ${base_width} ${base_height}"/></geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 ${base_height/2}"/>
+      <mass value="${base_mass}"/>
+      <xacro:box_inertia m="${base_mass}" x="${base_length}" y="${base_width}" z="${base_height}"/>
+    </inertial>
+  </link>
+
+  <link name="turret_link">
+    <visual>
+      <geometry><cylinder radius="0.08" length="${turret_height}"/></geometry>
+      <material name="pguard_dark"><color rgba="0.10 0.10 0.12 1"/></material>
+    </visual>
+    <collision>
+      <geometry><cylinder radius="0.08" length="${turret_height}"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="${turret_mass}"/>
+      <xacro:cylinder_inertia m="${turret_mass}" r="0.08" h="${turret_height}"/>
+    </inertial>
+  </link>
+  <joint name="turret_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="turret_link"/>
+    <origin xyz="0 0 ${base_height + turret_height/2}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Turret head: rounded black dome housing the pan/tilt day/night + thermal cameras -->
+  <link name="turret_head_link">
+    <visual>
+      <geometry><sphere radius="0.14"/></geometry>
+      <material name="turret_head_black"><color rgba="0.08 0.08 0.10 1"/></material>
+    </visual>
+    <collision>
+      <geometry><sphere radius="0.14"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="2.0"/>
+      <inertia ixx="0.02" ixy="0" ixz="0" iyy="0.02" iyz="0" izz="0.02"/>
+    </inertial>
+  </link>
+  <joint name="turret_head_joint" type="fixed">
+    <parent link="turret_link"/>
+    <child  link="turret_head_link"/>
+    <origin xyz="0 0 ${turret_height/2 + 0.10}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="beacon_link">
+    <visual>
+      <geometry><cylinder radius="0.06" length="0.10"/></geometry>
+      <material name="beacon_red"><color rgba="0.85 0.10 0.10 1"/></material>
+    </visual>
+    <inertial>
+      <mass value="0.1"/>
+      <xacro:cylinder_inertia m="0.1" r="0.06" h="0.10"/>
+    </inertial>
+  </link>
+  <joint name="beacon_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="beacon_link"/>
+    <!-- Red beacon mounted on the chassis roof, right of the turret pole -->
+    <origin xyz="0.10 0.25 ${base_height + 0.05}"/>
+  </joint>
+
+  <xacro:macro name="wheel" params="prefix x_pos y_pos">
+    <link name="${prefix}_wheel_link">
+      <visual>
+        <origin rpy="1.5707963 0 0"/>
+        <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry>
+        <material name="tire_black"><color rgba="0.08 0.08 0.08 1"/></material>
+      </visual>
+      <collision>
+        <origin rpy="1.5707963 0 0"/>
+        <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry>
+      </collision>
+      <inertial>
+        <mass value="${wheel_mass}"/>
+        <origin rpy="1.5707963 0 0"/>
+        <xacro:cylinder_inertia m="${wheel_mass}" r="${wheel_radius}" h="${wheel_width}"/>
+      </inertial>
+    </link>
+
+    <joint name="${prefix}_wheel_joint" type="continuous">
+      <parent link="base_link"/>
+      <child  link="${prefix}_wheel_link"/>
+      <origin xyz="${x_pos} ${y_pos} 0" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+      <dynamics damping="0.5" friction="0.2"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:wheel prefix="front_left"  x_pos="${ wheel_sep_x/2}" y_pos="${ wheel_sep_y/2}"/>
+  <xacro:wheel prefix="front_right" x_pos="${ wheel_sep_x/2}" y_pos="${-wheel_sep_y/2}"/>
+  <xacro:wheel prefix="rear_left"   x_pos="${-wheel_sep_x/2}" y_pos="${ wheel_sep_y/2}"/>
+  <xacro:wheel prefix="rear_right"  x_pos="${-wheel_sep_x/2}" y_pos="${-wheel_sep_y/2}"/>
+
+  <link name="imu_link">
+    <inertial><mass value="0.05"/><xacro:box_inertia m="0.05" x="0.04" y="0.04" z="0.02"/></inertial>
+  </link>
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/><child link="imu_link"/>
+    <origin xyz="0 0 ${base_height/2}"/>
+  </joint>
+
+  <link name="gps_link">
+    <visual>
+      <geometry><cylinder radius="0.04" length="0.04"/></geometry>
+      <material name="gps_yellow"><color rgba="0.9 0.9 0.1 1"/></material>
+    </visual>
+    <inertial><mass value="0.1"/><xacro:cylinder_inertia m="0.1" r="0.04" h="0.04"/></inertial>
+  </link>
+  <joint name="gps_joint" type="fixed">
+    <parent link="base_link"/><child link="gps_link"/>
+    <origin xyz="-${base_length/2 - 0.15} 0 ${base_height + 0.05}"/>
+  </joint>
+
+  <xacro:macro name="sonar" params="prefix xyz rpy">
+    <link name="${prefix}_sonar_link">
+      <visual>
+        <geometry><box size="0.05 0.05 0.03"/></geometry>
+        <material name="sonar_gray"><color rgba="0.4 0.4 0.4 1"/></material>
+      </visual>
+      <inertial><mass value="0.02"/><xacro:box_inertia m="0.02" x="0.05" y="0.05" z="0.03"/></inertial>
+    </link>
+    <joint name="${prefix}_sonar_joint" type="fixed">
+      <parent link="base_link"/><child link="${prefix}_sonar_link"/>
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:sonar prefix="front" xyz="${ base_length/2 + 0.02} 0 ${base_height/2}" rpy="0 0 0"/>
+  <xacro:sonar prefix="rear"  xyz="${-base_length/2 - 0.02} 0 ${base_height/2}" rpy="0 0 3.14159"/>
+  <xacro:sonar prefix="left"  xyz="0 ${ base_width/2 + 0.02} ${base_height/2}"  rpy="0 0 1.5707963"/>
+  <xacro:sonar prefix="right" xyz="0 ${-base_width/2 - 0.02} ${base_height/2}"  rpy="0 0 -1.5707963"/>
+
+  <link name="camera_link">
+    <inertial><mass value="0.1"/><xacro:box_inertia m="0.1" x="0.05" y="0.05" z="0.05"/></inertial>
+  </link>
+  <joint name="camera_joint" type="fixed">
+    <parent link="turret_link"/><child link="camera_link"/>
+    <origin xyz="0.15 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <xacro:include filename="$(find my_pguard_bot)/description/pguard.gazebo.xacro"/>
+</robot>

@@ -1,19 +1,34 @@
 """
 Fleet Chat Agent - LLM-powered chatbot that controls robots via natural language.
-Supports: Anthropic Claude API or AWS Bedrock.
 
-Usage:
-    agent = FleetChatAgent(fleet_manager, provider="anthropic", api_key="sk-...")
-    response = agent.chat("Send the nearest robot to the warehouse")
+This is a REAL MCP client. It:
+  1. Spawns the robo_fleet FastMCP server as a subprocess over stdio
+     (via the pguard-fleet wrapper script or a direct path).
+  2. Discovers the available tools dynamically via MCP `list_tools`.
+  3. Forwards those tools to Claude (Anthropic or Bedrock) as function-calling
+     tools.
+  4. Dispatches every tool_use block back through MCP `call_tool` -
+     no hardcoded FLEET_TOOLS list, no hardcoded topic namespaces,
+     no chat_agent-side ROS knowledge whatsoever.
+
+Adding a new @mcp.tool() to the server makes it available to the chat
+on the next restart, with zero changes here.
+
+Preserves the constructor signature used by start_dashboard.py:
+    FleetChatAgent(fleet_manager, provider, api_key, model,
+                   rosbridge_host, rosbridge_port)
 """
 
-import json
-import math
-import os
-import time
-from typing import Optional
+from __future__ import annotations
 
-# Try importing LLM providers
+import asyncio
+import json
+import os
+import queue
+import threading
+from contextlib import AsyncExitStack
+from typing import Any
+
 try:
     import anthropic
     HAS_ANTHROPIC = True
@@ -26,452 +41,285 @@ try:
 except ImportError:
     HAS_BOTO3 = False
 
-
-# ═══════════════════════════════════════════════════════════
-# TOOL DEFINITIONS (for LLM function calling)
-# ═══════════════════════════════════════════════════════════
-
-FLEET_TOOLS = [
-    {
-        "name": "navigate_robot",
-        "description": "Navigate a specific robot to a target position on the map. Use when user says 'send robot to X' or 'move tb1 to position'.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "robot_id": {"type": "string", "description": "Robot name (e.g. 'tb1', 'tb3')"},
-                "x": {"type": "number", "description": "Target X coordinate in meters"},
-                "y": {"type": "number", "description": "Target Y coordinate in meters"},
-            },
-            "required": ["robot_id", "x", "y"]
-        }
-    },
-    {
-        "name": "send_nearest_to_location",
-        "description": "Send the nearest available robot to a named location. Locations: origin(0,0), charging_station(0,0), warehouse(1,1), dock(-1,0), entrance(0,-1), storage(-1,1), workstation_a(1,-1), workstation_b(0.5,0.5).",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "location": {"type": "string", "description": "Named location (e.g. 'warehouse', 'dock', 'charging_station')"},
-            },
-            "required": ["location"]
-        }
-    },
-    {
-        "name": "get_fleet_status",
-        "description": "Get current positions, battery levels, and status of all robots in the fleet.",
-        "input_schema": {
-            "type": "object",
-            "properties": {},
-        }
-    },
-    {
-        "name": "stop_robot",
-        "description": "Immediately stop a specific robot. Use for emergency or when user says 'stop'.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "robot_id": {"type": "string", "description": "Robot to stop (e.g. 'tb1'). Use 'all' to stop all robots."},
-            },
-            "required": ["robot_id"]
-        }
-    },
-    {
-        "name": "check_obstacles",
-        "description": "Check for obstacles near a robot using laser scan data.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "robot_id": {"type": "string", "description": "Robot to check (e.g. 'tb1')"},
-            },
-            "required": ["robot_id"]
-        }
-    },
-    {
-        "name": "assign_tasks",
-        "description": "Optimally assign multiple navigation tasks to available robots. The system picks the best robot for each task.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "tasks": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "x": {"type": "number"},
-                            "y": {"type": "number"},
-                            "priority": {"type": "integer", "description": "Higher = more urgent"}
-                        },
-                        "required": ["x", "y"]
-                    },
-                    "description": "List of target positions"
-                }
-            },
-            "required": ["tasks"]
-        }
-    },
-    {
-        "name": "navigate_waypoints",
-        "description": "Navigate a robot through a sequence of waypoints in order.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "robot_id": {"type": "string", "description": "Robot to send"},
-                "waypoints": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {"x": {"type": "number"}, "y": {"type": "number"}},
-                        "required": ["x", "y"]
-                    }
-                }
-            },
-            "required": ["robot_id", "waypoints"]
-        }
-    },
-]
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
 
 
-# ═══════════════════════════════════════════════════════════
-# TOOL EXECUTOR
-# ═══════════════════════════════════════════════════════════
+# System prompt is built dynamically from the live fleet state so it
+# describes whichever robots are actually connected (pguard, tb1, etc.).
+SYSTEM_PROMPT_TEMPLATE = """You are the Robo_Fleet AI assistant controlling a live robot fleet through the Model Context Protocol (MCP).
 
-class ToolExecutor:
-    """Executes fleet tools and returns results."""
+Connected robots: {robots}
 
-    def __init__(self, fleet_manager, rosbridge_host="localhost", rosbridge_port=9090):
-        self.fleet = fleet_manager
-        self.ros_host = rosbridge_host
-        self.ros_port = rosbridge_port
+You have access to a set of MCP tools published by the robo_fleet server. The tool list is enumerated at runtime - always trust the current tool schema over any prior assumption.
 
-    def _get_ros_client(self):
-        from ros.ros_client import RosClient
-        client = RosClient(host=self.ros_host, port=self.ros_port, max_retries=2)
-        client.connect()
-        return client
-
-    def execute(self, tool_name, tool_input):
-        """Execute a tool and return the result as a string."""
-        try:
-            if tool_name == "navigate_robot":
-                return self._navigate(tool_input["robot_id"], tool_input["x"], tool_input["y"])
-            elif tool_name == "send_nearest_to_location":
-                return self._send_nearest(tool_input["location"])
-            elif tool_name == "get_fleet_status":
-                return self._fleet_status()
-            elif tool_name == "stop_robot":
-                return self._stop(tool_input["robot_id"])
-            elif tool_name == "check_obstacles":
-                return self._check_obstacles(tool_input["robot_id"])
-            elif tool_name == "assign_tasks":
-                return self._assign_tasks(tool_input["tasks"])
-            elif tool_name == "navigate_waypoints":
-                return self._navigate_waypoints(tool_input["robot_id"], tool_input["waypoints"])
-            else:
-                return json.dumps({"error": f"Unknown tool: {tool_name}"})
-        except Exception as e:
-            return json.dumps({"error": str(e)})
-
-    def _navigate(self, robot_id, x, y):
-        """Send navigation goal - non-blocking. Returns immediately after sending."""
-        import threading
-        client = self._get_ros_client()
-        goal = {
-            "pose": {"header": {"frame_id": "map"},
-                     "pose": {"position": {"x": x, "y": y, "z": 0.0},
-                              "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}}}
-        }
-        self.fleet.set_robot_status(robot_id, "navigating", goal_x=x, goal_y=y)
-        resp = client.send_goal(f"/{robot_id}/navigate_to_pose", "nav2_msgs/action/NavigateToPose", goal)
-        goal_id = resp["goal_id"]
-
-        # Wait for result in background thread (don't block the LLM)
-        def _wait():
-            try:
-                result = client.wait_for_result(f"/{robot_id}/navigate_to_pose", goal_id, timeout=60)
-                client.disconnect()
-                self.fleet.set_robot_status(robot_id, "idle")
-            except:
-                self.fleet.set_robot_status(robot_id, "idle")
-
-        threading.Thread(target=_wait, daemon=True).start()
-        return json.dumps({"success": True, "robot_id": robot_id, "target": {"x": x, "y": y},
-                          "status": "navigating", "goal_id": goal_id,
-                          "message": f"{robot_id} is now navigating to ({x:.2f}, {y:.2f})"})
-
-    def _send_nearest(self, location):
-        from tools.natural_language import _load_locations
-        locations = _load_locations()
-        loc = locations.get(location.lower().replace(" ", "_"))
-        if not loc:
-            return json.dumps({"error": f"Unknown location: {location}. Available: {list(locations.keys())}"})
-
-        robot = self.fleet.get_nearest_available(loc["x"], loc["y"])
-        if not robot:
-            return json.dumps({"error": "No available robots"})
-
-        return self._navigate(robot.robot_id, loc["x"], loc["y"])
-
-    def _fleet_status(self):
-        states = self.fleet.get_all_states()
-        return json.dumps({"robots": states, "total": len(states),
-                          "online": sum(1 for s in states if s["online"])})
-
-    def _stop(self, robot_id):
-        client = self._get_ros_client()
-        if robot_id == "all":
-            for rid in self.fleet.robots:
-                client.publish(f"/{rid}/cmd_vel", "geometry_msgs/msg/Twist",
-                             {"linear": {"x": 0.0, "y": 0.0, "z": 0.0}, "angular": {"x": 0.0, "y": 0.0, "z": 0.0}})
-                self.fleet.set_robot_status(rid, "idle")
-            client.disconnect()
-            return json.dumps({"success": True, "stopped": list(self.fleet.robots.keys())})
-        else:
-            client.publish(f"/{robot_id}/cmd_vel", "geometry_msgs/msg/Twist",
-                         {"linear": {"x": 0.0, "y": 0.0, "z": 0.0}, "angular": {"x": 0.0, "y": 0.0, "z": 0.0}})
-            self.fleet.set_robot_status(robot_id, "idle")
-            client.disconnect()
-            return json.dumps({"success": True, "stopped": robot_id})
-
-    def _check_obstacles(self, robot_id):
-        client = self._get_ros_client()
-        msg = client.subscribe_once(f"/{robot_id}/scan", "sensor_msgs/msg/LaserScan", timeout=3.0)
-        client.disconnect()
-        if not msg:
-            return json.dumps({"error": "No scan data"})
-        ranges = msg.get("ranges", [])
-        valid = [r for r in ranges if 0.12 <= r <= 10.0]
-        closest = min(valid) if valid else None
-        return json.dumps({"robot_id": robot_id, "closest_obstacle_m": closest,
-                          "alert": closest < 0.5 if closest else False})
-
-    def _assign_tasks(self, tasks):
-        """Assign AND dispatch tasks in parallel - all robots move simultaneously."""
-        from coordination.task_planner import TaskPlanner
-        planner = TaskPlanner(self.fleet)
-        task_objs = [planner.create_task(x=t["x"], y=t["y"], priority=t.get("priority", 0)) for t in tasks]
-        assignments = planner.allocate(task_objs)
-
-        results = []
-        for a in assignments:
-            # Send each robot navigating (non-blocking)
-            nav_result = json.loads(self._navigate(a.robot_id, a.task.x, a.task.y))
-            results.append({
-                "robot_id": a.robot_id,
-                "target": {"x": a.task.x, "y": a.task.y},
-                "cost": round(a.cost, 2),
-                "status": "navigating"
-            })
-
-        return json.dumps({
-            "assigned": len(results),
-            "all_robots_moving": True,
-            "assignments": results,
-            "message": f"Dispatched {len(results)} robots simultaneously"
-        })
-
-    def _navigate_waypoints(self, robot_id, waypoints):
-        """Navigate through waypoints - runs in background thread so LLM isn't blocked."""
-        import threading
-
-        def _run_waypoints():
-            try:
-                client = self._get_ros_client()
-                completed = 0
-                for wp in waypoints:
-                    goal = {"pose": {"header": {"frame_id": "map"},
-                                     "pose": {"position": {"x": wp["x"], "y": wp["y"], "z": 0.0},
-                                              "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}}}}
-                    self.fleet.set_robot_status(robot_id, "navigating", goal_x=wp["x"], goal_y=wp["y"])
-                    resp = client.send_goal(f"/{robot_id}/navigate_to_pose", "nav2_msgs/action/NavigateToPose", goal)
-                    result = client.wait_for_result(f"/{robot_id}/navigate_to_pose", resp["goal_id"], timeout=60)
-                    if result and result.get("success"):
-                        completed += 1
-                    else:
-                        break
-                client.disconnect()
-                self.fleet.set_robot_status(robot_id, "idle")
-            except:
-                self.fleet.set_robot_status(robot_id, "idle")
-
-        threading.Thread(target=_run_waypoints, daemon=True).start()
-        return json.dumps({
-            "robot_id": robot_id,
-            "waypoints": len(waypoints),
-            "status": "navigating",
-            "message": f"{robot_id} is now following {len(waypoints)} waypoints"
-        })
-
-
-# ═══════════════════════════════════════════════════════════
-# CHAT AGENT
-# ═══════════════════════════════════════════════════════════
-
-SYSTEM_PROMPT = """You are the Robo_Fleet AI assistant controlling a fleet of TurtleBot3 robots.
-
-Available robots: {robots}
-Map bounds: -1.5m to 1.5m (x and y)
-
-Named locations: origin(0,0), charging_station(0,0), warehouse(1,1), dock(-1,0), entrance(0,-1), storage(-1,1), workstation_a(1,-1), workstation_b(0.5,0.5)
-
-You can:
-- Navigate robots to positions or named locations
-- Check fleet status and battery levels
-- Stop robots in emergencies
-- Check for obstacles
-- Assign multiple tasks optimally
-- Navigate robots through waypoint sequences
-
-Be concise. After executing a command, confirm what happened.
-Keep coordinates within map bounds (-1.3 to 1.3).
+Guidance:
+- When the user asks for status, position, or battery, use the corresponding read-only tool.
+- When the user says "send X to (a, b)" or "go to <location>", call the appropriate navigation tool.
+- When the user says "stop" or "emergency", stop only the affected robots unless they say "all".
+- Coordinates are in meters in the map frame. The map origin is the fleet datum (for the PGuard outdoor setup this is Enova HQ in Novation City).
+- Be concise. After each action, briefly confirm what happened.
 """
 
 
-class FleetChatAgent:
-    """LLM-powered chat agent for fleet control."""
+class _MCPBridge:
+    """
+    Runs a persistent asyncio event loop in a background thread that owns
+    the MCP ClientSession. Exposes sync `list_tools()` / `call_tool()`
+    wrappers so the rest of the code (and the dashboard's threading model)
+    doesn't need to be async-aware.
+    """
 
-    def __init__(self, fleet_manager, provider="anthropic", api_key=None,
-                 model=None, rosbridge_host="localhost", rosbridge_port=9090):
-        """
-        Args:
-            fleet_manager: FleetStateManager instance
-            provider: "anthropic" or "bedrock"
-            api_key: API key (for Anthropic). For Bedrock, uses AWS credentials.
-            model: Model name. Default: claude-sonnet-4-20250514 (Anthropic) or anthropic.claude-sonnet-4-20250514-v1:0 (Bedrock)
-            rosbridge_host: rosbridge host for tool execution
-            rosbridge_port: rosbridge port
-        """
+    def __init__(self, server_command: str, server_args: list[str] | None = None,
+                 env: dict[str, str] | None = None):
+        self._params = StdioServerParameters(
+            command=server_command,
+            args=server_args or [],
+            env=env,
+        )
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._thread: threading.Thread | None = None
+        self._session: ClientSession | None = None
+        self._exit_stack: AsyncExitStack | None = None
+        self._ready = threading.Event()
+        self._startup_error: BaseException | None = None
+        self._tools_cache: list[dict] | None = None
+
+    def start(self, timeout: float = 15.0) -> None:
+        self._thread = threading.Thread(target=self._run_loop, daemon=True)
+        self._thread.start()
+        if not self._ready.wait(timeout=timeout):
+            raise TimeoutError("MCP server did not become ready in time")
+        if self._startup_error:
+            raise self._startup_error
+
+    def _run_loop(self) -> None:
+        try:
+            self._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._loop)
+            self._loop.run_until_complete(self._session_lifecycle())
+        except BaseException as exc:
+            self._startup_error = exc
+            self._ready.set()
+
+    async def _session_lifecycle(self) -> None:
+        # Keep the session open for the process's lifetime.
+        async with AsyncExitStack() as stack:
+            self._exit_stack = stack
+            read, write = await stack.enter_async_context(stdio_client(self._params))
+            session = await stack.enter_async_context(ClientSession(read, write))
+            await session.initialize()
+            self._session = session
+            self._ready.set()
+
+            # Block forever - the event loop stays alive until stop().
+            self._shutdown = asyncio.Event()
+            await self._shutdown.wait()
+
+    def stop(self) -> None:
+        if self._loop and self._loop.is_running():
+            async def _trigger():
+                if hasattr(self, "_shutdown"):
+                    self._shutdown.set()
+            asyncio.run_coroutine_threadsafe(_trigger(), self._loop)
+
+    def _run(self, coro):
+        assert self._loop is not None, "MCP bridge not started"
+        fut = asyncio.run_coroutine_threadsafe(coro, self._loop)
+        return fut.result()
+
+    def list_tools(self, use_cache: bool = True) -> list[dict]:
+        if use_cache and self._tools_cache is not None:
+            return self._tools_cache
+        result = self._run(self._session.list_tools())
+        tools: list[dict] = []
+        for t in result.tools:
+            tools.append({
+                "name": t.name,
+                "description": (t.description or "").strip(),
+                "input_schema": t.inputSchema or {"type": "object", "properties": {}},
+            })
+        self._tools_cache = tools
+        return tools
+
+    def call_tool(self, name: str, arguments: dict) -> str:
+        """Call the tool and flatten the result to a string for the LLM."""
+        result = self._run(self._session.call_tool(name, arguments=arguments))
+        chunks: list[str] = []
+        for c in result.content:
+            text = getattr(c, "text", None)
+            if text:
+                chunks.append(text)
+            else:
+                chunks.append(str(c))
+        payload = "\n".join(chunks) if chunks else ""
+        if getattr(result, "isError", False):
+            return json.dumps({"error": payload or "tool call failed"})
+        return payload or "(no output)"
+
+
+class FleetChatAgent:
+    """LLM-powered chat agent - MCP client edition."""
+
+    def __init__(
+        self,
+        fleet_manager,
+        provider: str = "anthropic",
+        api_key: str | None = None,
+        model: str | None = None,
+        rosbridge_host: str = "localhost",
+        rosbridge_port: int = 9090,
+        mcp_server_command: str | None = None,
+        mcp_server_args: list[str] | None = None,
+    ):
         self.fleet = fleet_manager
         self.provider = provider
-        self.executor = ToolExecutor(fleet_manager, rosbridge_host, rosbridge_port)
-        self.messages = []  # Conversation history
+        self.messages: list[dict] = []
 
+        # LLM client setup.
         if provider == "anthropic":
             if not HAS_ANTHROPIC:
                 raise ImportError("pip install anthropic")
             self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+            if not self.api_key:
+                raise ValueError("ANTHROPIC_API_KEY not set")
             self.model = model or "claude-sonnet-4-20250514"
             self.client = anthropic.Anthropic(api_key=self.api_key)
-
         elif provider == "bedrock":
             if not HAS_BOTO3:
                 raise ImportError("pip install boto3")
             self.model = model or "anthropic.claude-sonnet-4-20250514-v1:0"
-            self.client = boto3.client("bedrock-runtime", region_name=os.environ.get("AWS_REGION", "us-east-1"))
-
+            self.client = boto3.client(
+                "bedrock-runtime",
+                region_name=os.environ.get("AWS_REGION", "us-east-1"),
+            )
         else:
-            raise ValueError(f"Unknown provider: {provider}. Use 'anthropic' or 'bedrock'.")
+            raise ValueError(f"Unknown provider: {provider!r}. Use 'anthropic' or 'bedrock'.")
 
-    def chat(self, user_message):
-        """
-        Send a message and get a response (with tool use if needed).
-        Returns the assistant's text response.
-        """
+        # MCP server: default to the sibling FastMCP server (mcp_server/index.py).
+        # Callers can override by passing mcp_server_command explicitly, which
+        # is how the pguard-fleet wrapper is wired in.
+        if mcp_server_command is None:
+            here = os.path.dirname(os.path.abspath(__file__))
+            server_dir = os.path.normpath(os.path.join(here, ".."))  # mcp_server/
+            mcp_server_command = "python3"
+            mcp_server_args = ["-u", os.path.join(server_dir, "index.py")]
+            env = os.environ.copy()
+            # Ensure the child process can import `server`, `tools.*`, etc.
+            env["PYTHONPATH"] = server_dir + os.pathsep + env.get("PYTHONPATH", "")
+            # Pass the rosbridge address through so the MCP tools connect to the
+            # right host without any chat_agent-side ROS logic.
+            env["ROBOFLEET_ROSBRIDGE_HOST"] = rosbridge_host
+            env["ROBOFLEET_ROSBRIDGE_PORT"] = str(rosbridge_port)
+        else:
+            env = os.environ.copy()
+
+        self.mcp = _MCPBridge(mcp_server_command, mcp_server_args, env=env)
+        self.mcp.start()
+        self.tools = self.mcp.list_tools()
+        self.last_tool_used: str | None = None
+
+    def chat(self, user_message: str) -> str:
+        """Send a message, run the tool-use loop, return the final assistant text."""
         self.messages.append({"role": "user", "content": user_message})
+        system = self._render_system_prompt()
 
-        # Build system prompt with current robot info
-        robot_info = ", ".join(f"{r.robot_id}({r.x:.1f},{r.y:.1f})" for r in self.fleet.robots.values())
-        system = SYSTEM_PROMPT.format(robots=robot_info)
-
-        # Call LLM
         response = self._call_llm(system)
+        self.last_tool_used = None
 
-        # Handle tool use loop
-        max_loops = 5
-        loops = 0
-        while loops < max_loops:
-            loops += 1
-
-            # Check if response has tool calls
+        for _ in range(8):  # tool loop safety cap
             tool_calls = self._extract_tool_calls(response)
             if not tool_calls:
                 break
 
-            # Execute tools
-            tool_results = []
             for tc in tool_calls:
-                result = self.executor.execute(tc["name"], tc["input"])
-                tool_results.append({"tool_use_id": tc["id"], "content": result})
+                self.last_tool_used = tc["name"]
 
-            # Send tool results back to LLM
             self.messages.append({"role": "assistant", "content": response["content"]})
-            self.messages.append({"role": "user", "content": [
-                {"type": "tool_result", "tool_use_id": tr["tool_use_id"], "content": tr["content"]}
-                for tr in tool_results
-            ]})
+            self.messages.append({
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tc["id"],
+                        "content": self.mcp.call_tool(tc["name"], tc["input"] or {}),
+                    }
+                    for tc in tool_calls
+                ],
+            })
 
             response = self._call_llm(system)
 
-        # Extract final text
         text = self._extract_text(response)
         self.messages.append({"role": "assistant", "content": text})
         return text
 
-    def _call_llm(self, system):
-        """Call the LLM provider."""
+    def reset(self) -> None:
+        self.messages = []
+        self.last_tool_used = None
+
+    def _render_system_prompt(self) -> str:
+        # Describe the fleet dynamically - no hardcoded tb1/tb2/tb3.
+        parts: list[str] = []
+        for rid, robot in self.fleet.robots.items():
+            x = getattr(robot, "x", 0.0)
+            y = getattr(robot, "y", 0.0)
+            parts.append(f"{rid} @ ({x:.2f}, {y:.2f})")
+        robot_list = ", ".join(parts) if parts else "(none online yet)"
+        return SYSTEM_PROMPT_TEMPLATE.format(robots=robot_list)
+
+    def _call_llm(self, system: str) -> dict:
         if self.provider == "anthropic":
-            response = self.client.messages.create(
+            resp = self.client.messages.create(
                 model=self.model,
                 max_tokens=1024,
                 system=system,
-                tools=FLEET_TOOLS,
+                tools=self.tools,
                 messages=self.messages,
             )
-            return {"content": response.content, "stop_reason": response.stop_reason}
+            return {"content": resp.content, "stop_reason": resp.stop_reason}
 
-        elif self.provider == "bedrock":
-            # Bedrock InvokeModel with anthropic_version uses Anthropic Messages API format
-            # but tools need "type": "custom" wrapping for newer Bedrock models
-            bedrock_tools = []
-            for t in FLEET_TOOLS:
-                bedrock_tools.append({
-                    "name": t["name"],
-                    "description": t["description"],
-                    "input_schema": t["input_schema"],
-                })
+        body = {
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": 1024,
+            "system": [{"type": "text", "text": system}],
+            "tools": self.tools,
+            "messages": self.messages,
+        }
+        raw = self.client.invoke_model(
+            modelId=self.model,
+            body=json.dumps(body),
+            contentType="application/json",
+            accept="application/json",
+        )
+        result = json.loads(raw["body"].read())
+        return {"content": result.get("content", []), "stop_reason": result.get("stop_reason")}
 
-            body = {
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 1024,
-                "system": [{"type": "text", "text": system}],
-                "tools": bedrock_tools,
-                "messages": self.messages,
-            }
-
-            resp = self.client.invoke_model(
-                modelId=self.model,
-                body=json.dumps(body),
-                contentType="application/json",
-                accept="application/json",
-            )
-            result = json.loads(resp["body"].read())
-            return {"content": result.get("content", []), "stop_reason": result.get("stop_reason")}
-
-    def _extract_tool_calls(self, response):
-        """Extract tool_use blocks from response."""
-        calls = []
+    @staticmethod
+    def _extract_tool_calls(response: dict) -> list[dict]:
+        calls: list[dict] = []
         content = response.get("content", [])
         if isinstance(content, str):
-            return []
+            return calls
         for block in content:
-            if hasattr(block, "type") and block.type == "tool_use":
+            btype = getattr(block, "type", None) or (isinstance(block, dict) and block.get("type"))
+            if btype != "tool_use":
+                continue
+            if hasattr(block, "id"):
                 calls.append({"id": block.id, "name": block.name, "input": block.input})
-            elif isinstance(block, dict) and block.get("type") == "tool_use":
+            else:
                 calls.append({"id": block["id"], "name": block["name"], "input": block["input"]})
         return calls
 
-    def _extract_text(self, response):
-        """Extract text from response."""
+    @staticmethod
+    def _extract_text(response: dict) -> str:
         content = response.get("content", [])
         if isinstance(content, str):
             return content
-        texts = []
+        texts: list[str] = []
         for block in content:
-            if hasattr(block, "type") and block.type == "text":
-                texts.append(block.text)
-            elif isinstance(block, dict) and block.get("type") == "text":
-                texts.append(block["text"])
+            btype = getattr(block, "type", None) or (isinstance(block, dict) and block.get("type"))
+            if btype != "text":
+                continue
+            texts.append(getattr(block, "text", None) or block["text"])
         return " ".join(texts) if texts else "Done."
-
-    def reset(self):
-        """Clear conversation history."""
-        self.messages = []

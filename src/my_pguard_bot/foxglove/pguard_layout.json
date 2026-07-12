@@ -1,0 +1,122 @@
+{
+  "configById": {
+    "3D!pguard": {
+      "cameraState": {
+        "distance": 25,
+        "perspective": true,
+        "phi": 55,
+        "target": [0, 0, 0],
+        "targetOffset": [0, 0, 0],
+        "targetOrientation": [0, 0, 0, 1],
+        "thetaOffset": 45,
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "followTf": "base_footprint",
+      "scene": {
+        "backgroundColor": "#2a2a2a",
+        "enableStats": false,
+        "labelScaleFactor": 1
+      },
+      "transforms": {
+        "frame:map":            { "visible": true },
+        "frame:odom":           { "visible": true },
+        "frame:base_footprint": { "visible": true },
+        "frame:base_link":      { "visible": true }
+      },
+      "topics": {
+        "/tf":                    { "visible": true },
+        "/robot_description":     { "visible": true },
+        "/odom":                  { "visible": true, "color": "#3ea6ff" },
+        "/sonar/front":           { "visible": true, "color": "#ff5252" },
+        "/sonar/rear":            { "visible": true, "color": "#ff5252" },
+        "/sonar/left":            { "visible": true, "color": "#ff5252" },
+        "/sonar/right":           { "visible": true, "color": "#ff5252" },
+        "/global_costmap/costmap":{ "visible": true },
+        "/local_costmap/costmap": { "visible": true },
+        "/plan":                  { "visible": true, "color": "#00e676" }
+      },
+      "layers": {
+        "grid": {
+          "layerId": "foxglove.Grid",
+          "size": 100,
+          "divisions": 100,
+          "lineWidth": 1,
+          "color": "#4d4d4d",
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0],
+          "order": 1
+        }
+      },
+      "publish": {
+        "type": "pose_estimate",
+        "poseTopic":         "/initialpose",
+        "poseEstimateTopic": "/initialpose",
+        "goalTopic":         "/goal_pose"
+      }
+    },
+    "Map!enova": {
+      "center": { "lat": 35.8173, "lon": 10.5912 },
+      "disabledTopics": [],
+      "followTopic": "/gps/fix",
+      "layer": "map",
+      "topicColors": {
+        "/gps/fix": "#00e676"
+      },
+      "zoomLevel": 18,
+      "customTileUrl": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      "maxNativeZoom": 19
+    },
+    "Plot!linvel": {
+      "paths": [
+        { "value": "/odom.twist.twist.linear.x", "enabled": true, "label": "vx" },
+        { "value": "/cmd_vel.linear.x",          "enabled": true, "label": "vx_cmd" }
+      ],
+      "xAxisVal": "timestamp",
+      "showLegend": true,
+      "isSynced": true,
+      "legendDisplay": "top"
+    },
+    "Plot!imu": {
+      "paths": [
+        { "value": "/imu.angular_velocity.z", "enabled": true, "label": "yaw_rate" }
+      ],
+      "xAxisVal": "timestamp",
+      "showLegend": true
+    },
+    "RawMessages!gps": {
+      "topicPath": "/gps/fix"
+    },
+    "Diagnostics!status": {
+      "topicToRender": "/diagnostics"
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": { "speed": 1 },
+  "layout": {
+    "first": {
+      "first": "3D!pguard",
+      "second": "Map!enova",
+      "direction": "row",
+      "splitPercentage": 55
+    },
+    "second": {
+      "first": {
+        "first": "Plot!linvel",
+        "second": "Plot!imu",
+        "direction": "column"
+      },
+      "second": {
+        "first": "RawMessages!gps",
+        "second": "Diagnostics!status",
+        "direction": "column"
+      },
+      "direction": "row"
+    },
+    "direction": "column",
+    "splitPercentage": 65
+  }
+}

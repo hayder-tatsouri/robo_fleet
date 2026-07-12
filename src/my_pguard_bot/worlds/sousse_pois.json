@@ -1,0 +1,104 @@
+{
+  "datum": [
+    35.8173,
+    10.5912
+  ],
+  "pois": [
+    {
+      "name": "Ecole Sup\u00e9rieure Priv\u00e9e d'Ing\u00e9nierie et de Technologie Appliqu\u00e9e ESPITA",
+      "kind": "amenity=place_of_worship",
+      "lat": 35.8157794,
+      "lon": 10.5974379,
+      "x": 563.0799227178907,
+      "y": -169.27241770095438
+    },
+    {
+      "name": "\u0634\u0644",
+      "kind": "amenity=fuel",
+      "lat": 35.8199087,
+      "lon": 10.5952446,
+      "x": 365.09611494645026,
+      "y": 290.39915563198235
+    },
+    {
+      "name": "DACT DRAEXLMAIER",
+      "kind": "office=company",
+      "lat": 35.8161882,
+      "lon": 10.5912409,
+      "x": 3.6919426151806447,
+      "y": -123.76500986439369
+    },
+    {
+      "name": "NOVATION MECHATRONIC CITY",
+      "kind": "office=company",
+      "lat": 35.8164177,
+      "lon": 10.591229,
+      "x": 2.6177588224569903,
+      "y": -98.2171867269797
+    },
+    {
+      "name": "Proxym-IT",
+      "kind": "office=company",
+      "lat": 35.8166612,
+      "lon": 10.5912163,
+      "x": 1.4713609932086362,
+      "y": -71.11089071923077
+    },
+    {
+      "name": "Positrone Tunisia",
+      "kind": "office=company",
+      "lat": 35.8167851,
+      "lon": 10.5912099,
+      "x": 0.8936487014920779,
+      "y": -57.31840581012226
+    },
+    {
+      "name": "Dejamobile sousse",
+      "kind": "office=company",
+      "lat": 35.8168835,
+      "lon": 10.5912048,
+      "x": 0.4332842188275056,
+      "y": -46.3645679154031
+    },
+    {
+      "name": "CATHARSIS CONSULTING",
+      "kind": "office=company",
+      "lat": 35.8169918,
+      "lon": 10.5911992,
+      "x": -0.07221403652470007,
+      "y": -34.308667063189226
+    },
+    {
+      "name": "VEO Worldwide Services",
+      "kind": "office=company",
+      "lat": 35.8171214,
+      "lon": 10.5911924,
+      "x": -0.6860333465837821,
+      "y": -19.88166105626273
+    },
+    {
+      "name": "Enova Robotics",
+      "kind": "office=company",
+      "lat": 35.8173406,
+      "lon": 10.5911811,
+      "x": -1.706056611953998,
+      "y": 4.519571326027896
+    },
+    {
+      "name": "Sagemcom Software & Technologies",
+      "kind": "office=company",
+      "lat": 35.8174533,
+      "lon": 10.5911752,
+      "x": -2.238635130982923,
+      "y": 17.06527793791928
+    },
+    {
+      "name": "YAMAICHI ELECTRONICS TUNISIE",
+      "kind": "office=company",
+      "lat": 35.8158658,
+      "lon": 10.5912577,
+      "x": 5.208437381237261,
+      "y": -159.65441369633672
+    }
+  ]
+}

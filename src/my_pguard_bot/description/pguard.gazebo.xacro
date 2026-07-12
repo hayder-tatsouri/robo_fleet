@@ -1,0 +1,163 @@
+<?xml version="1.0" ?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <gazebo reference="base_link">
+    <mu1>0.3</mu1><mu2>0.3</mu2>
+  </gazebo>
+
+  <xacro:macro name="wheel_gazebo" params="prefix">
+    <gazebo reference="${prefix}_wheel_link">
+      <mu1>1.2</mu1>
+      <mu2>1.0</mu2>
+      <kp>1e7</kp>
+      <kd>1e3</kd>
+      <fdir1>1 0 0</fdir1>
+    </gazebo>
+  </xacro:macro>
+  <xacro:wheel_gazebo prefix="front_left"/>
+  <xacro:wheel_gazebo prefix="front_right"/>
+  <xacro:wheel_gazebo prefix="rear_left"/>
+  <xacro:wheel_gazebo prefix="rear_right"/>
+
+  <!--
+    Skid-steer drive: treat 2 left wheels as one channel and 2 right wheels as
+    another. Wheel separation matches the lateral distance between the two
+    channels (~1.05 m). Max cruise linear ~2 m/s, well under the spec 3.33 m/s.
+  -->
+  <gazebo>
+    <plugin filename="gz-sim-diff-drive-system"
+            name="gz::sim::systems::DiffDrive">
+      <left_joint>front_left_wheel_joint</left_joint>
+      <left_joint>rear_left_wheel_joint</left_joint>
+      <right_joint>front_right_wheel_joint</right_joint>
+      <right_joint>rear_right_wheel_joint</right_joint>
+      <wheel_separation>1.05</wheel_separation>
+      <wheel_radius>0.25</wheel_radius>
+      <odom_publish_frequency>50</odom_publish_frequency>
+      <topic>cmd_vel</topic>
+      <odom_topic>odom</odom_topic>
+      <tf_topic>tf_gz</tf_topic>
+      <frame_id>odom</frame_id>
+      <child_frame_id>base_footprint</child_frame_id>
+      <max_linear_acceleration>1.5</max_linear_acceleration>
+      <max_angular_acceleration>2.0</max_angular_acceleration>
+      <max_linear_velocity>2.0</max_linear_velocity>
+      <max_angular_velocity>1.5</max_angular_velocity>
+    </plugin>
+
+    <plugin filename="gz-sim-joint-state-publisher-system"
+            name="gz::sim::systems::JointStatePublisher">
+      <topic>joint_states</topic>
+      <joint_name>front_left_wheel_joint</joint_name>
+      <joint_name>front_right_wheel_joint</joint_name>
+      <joint_name>rear_left_wheel_joint</joint_name>
+      <joint_name>rear_right_wheel_joint</joint_name>
+    </plugin>
+  </gazebo>
+
+  <!-- IMU: automotive-grade -->
+  <gazebo reference="imu_link">
+    <sensor name="imu_sensor" type="imu">
+      <always_on>1</always_on>
+      <update_rate>100</update_rate>
+      <topic>imu</topic>
+      <gz_frame_id>imu_link</gz_frame_id>
+      <imu>
+        <angular_velocity>
+          <x><noise type="gaussian"><mean>0.0</mean><stddev>1e-4</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0.0</mean><stddev>1e-4</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0.0</mean><stddev>1e-4</stddev></noise></z>
+        </angular_velocity>
+        <linear_acceleration>
+          <x><noise type="gaussian"><mean>0.0</mean><stddev>8e-3</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0.0</mean><stddev>8e-3</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0.0</mean><stddev>8e-3</stddev></noise></z>
+        </linear_acceleration>
+      </imu>
+    </sensor>
+  </gazebo>
+
+  <!--
+    RTK-grade GPS: ~2 cm horizontal stddev.
+    Remember: Gazebo Harmonic NavSat applies HORIZONTAL noise in DEGREES, not
+    meters. 0.02 m / 111000 m/deg ~ 1.8e-7 deg.
+  -->
+  <gazebo reference="gps_link">
+    <sensor name="navsat_sensor" type="navsat">
+      <always_on>1</always_on>
+      <update_rate>10</update_rate>
+      <topic>navsat</topic>
+      <gz_frame_id>gps_link</gz_frame_id>
+      <navsat>
+        <position_sensing>
+          <horizontal><noise type="gaussian"><mean>0.0</mean><stddev>1.8e-7</stddev></noise></horizontal>
+          <vertical>  <noise type="gaussian"><mean>0.0</mean><stddev>0.05</stddev></noise></vertical>
+        </position_sensing>
+        <velocity_sensing>
+          <horizontal><noise type="gaussian"><mean>0.0</mean><stddev>0.02</stddev></noise></horizontal>
+          <vertical>  <noise type="gaussian"><mean>0.0</mean><stddev>0.05</stddev></noise></vertical>
+        </velocity_sensing>
+      </navsat>
+    </sensor>
+  </gazebo>
+
+  <!--
+    Ultrasonic rangefinders as obstacle-detection surrogates. Modelled as
+    narrow single-beam gpu_lidar sensors: 5 m max range, 15 deg cone.
+  -->
+  <xacro:macro name="sonar_sensor" params="prefix">
+    <gazebo reference="${prefix}_sonar_link">
+      <sensor name="${prefix}_sonar" type="gpu_lidar">
+        <always_on>1</always_on>
+        <update_rate>15</update_rate>
+        <topic>sonar/${prefix}</topic>
+        <gz_frame_id>${prefix}_sonar_link</gz_frame_id>
+        <lidar>
+          <scan>
+            <horizontal>
+              <samples>5</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.13</min_angle>
+              <max_angle> 0.13</max_angle>
+            </horizontal>
+            <vertical>
+              <samples>3</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.13</min_angle>
+              <max_angle> 0.13</max_angle>
+            </vertical>
+          </scan>
+          <range>
+            <min>0.10</min>
+            <max>5.00</max>
+            <resolution>0.02</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </lidar>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+  <xacro:sonar_sensor prefix="front"/>
+  <xacro:sonar_sensor prefix="rear"/>
+  <xacro:sonar_sensor prefix="left"/>
+  <xacro:sonar_sensor prefix="right"/>
+
+  <!-- Forward camera for capturing what the robot sees -->
+  <gazebo reference="camera_link">
+    <sensor name="front_camera" type="camera">
+      <always_on>1</always_on>
+      <update_rate>10</update_rate>
+      <topic>camera/image_raw</topic>
+      <gz_frame_id>camera_link</gz_frame_id>
+      <camera>
+        <horizontal_fov>1.396</horizontal_fov>
+        <image><width>640</width><height>480</height><format>R8G8B8</format></image>
+        <clip><near>0.1</near><far>500.0</far></clip>
+      </camera>
+    </sensor>
+  </gazebo>
+</robot>

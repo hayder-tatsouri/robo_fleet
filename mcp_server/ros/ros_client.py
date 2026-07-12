@@ -32,7 +32,11 @@ class RosClient:
             try:
                 self.ws = websocket.create_connection(self.url, timeout=5)
                 self._connected = True
-                print(f"Connected to rosbridge at {self.url} ✅")
+                # NOTE: Do NOT print to stdout - when this module is loaded by
+                # the FastMCP server running over stdio, stray stdout writes
+                # corrupt the JSON-RPC wire protocol. Log to stderr instead.
+                import sys
+                print(f"Connected to rosbridge at {self.url}", file=sys.stderr)
                 return True
             except Exception as e:
                 retries += 1

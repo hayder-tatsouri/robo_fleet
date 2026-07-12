@@ -2,29 +2,48 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Robo_Fleet - Live Dashboard</title>
+<title>Robo_Fleet - Novation City Live</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: #1a1a2e; color: #e0e0e0; font-family: -apple-system, sans-serif; overflow: hidden; }
-#header { padding: 12px 20px; background: #16213e; display: flex; align-items: center; justify-content: space-between; }
+#header { padding: 10px 20px; background: #16213e; display: flex; align-items: center; justify-content: space-between; }
 #header h1 { font-size: 16px; font-weight: 600; }
+#header .sub { font-size: 11px; color: #9ca3af; margin-left: 10px; }
 #status { font-size: 12px; padding: 4px 10px; border-radius: 12px; }
 #status.connected { background: rgba(34,197,94,0.2); color: #4ade80; }
 #status.disconnected { background: rgba(239,68,68,0.2); color: #f87171; }
-#main { display: flex; height: calc(100vh - 44px); }
-#canvas-wrap { flex: 1; position: relative; }
-canvas { width: 100%; height: 100%; }
-#sidebar { width: 240px; background: #16213e; padding: 12px; overflow-y: auto; border-left: 1px solid #2a2a4a; }
+
+#main { display: flex; height: calc(100vh - 42px); }
+#canvas-wrap { flex: 1; position: relative; background: #0a0a1a; }
+canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+
+/* Legend overlay */
+#legend { position: absolute; top: 12px; left: 12px; background: rgba(22,33,62,0.92); padding: 10px 12px; border-radius: 6px; font-size: 11px; border: 1px solid #2a2a4a; }
+#legend .row { display: flex; align-items: center; margin: 3px 0; }
+#legend .swatch { width: 14px; height: 14px; border-radius: 2px; margin-right: 8px; border: 1px solid #333; }
+
+/* View info overlay */
+#viewinfo { position: absolute; bottom: 12px; left: 12px; background: rgba(22,33,62,0.92); padding: 6px 10px; border-radius: 6px; font-size: 10px; font-family: monospace; color: #9ca3af; border: 1px solid #2a2a4a; }
+
+/* Controls */
+#controls { position: absolute; top: 12px; right: 12px; display: flex; flex-direction: column; gap: 4px; }
+.ctl-btn { background: rgba(22,33,62,0.92); color: #e0e0e0; border: 1px solid #2a2a4a; border-radius: 4px; padding: 6px 10px; font-size: 12px; cursor: pointer; min-width: 36px; }
+.ctl-btn:hover { background: #2a3a5a; }
+
+#sidebar { width: 260px; background: #16213e; padding: 12px; overflow-y: auto; border-left: 1px solid #2a2a4a; }
 .robot-card { background: #1a1a2e; border-radius: 8px; padding: 10px; margin-bottom: 8px; border: 1px solid #2a2a4a; }
 .robot-name { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
 .robot-pos { font-size: 11px; color: #9ca3af; font-family: monospace; }
-.robot-status { font-size: 10px; margin-top: 4px; padding: 2px 6px; border-radius: 8px; display: inline-block; }
+.robot-goal { font-size: 10px; color: #60a5fa; font-family: monospace; margin-top: 2px; }
+.robot-dist { font-size: 10px; color: #fbbf24; font-family: monospace; margin-top: 2px; }
+.robot-status { font-size: 10px; margin-top: 6px; padding: 2px 6px; border-radius: 8px; display: inline-block; }
 .status-idle { background: rgba(34,197,94,0.15); color: #4ade80; }
 .status-navigating { background: rgba(59,130,246,0.15); color: #60a5fa; }
 .status-offline { background: rgba(107,114,128,0.15); color: #9ca3af; }
 .battery-bar { height: 4px; background: #2a2a4a; border-radius: 2px; margin-top: 6px; }
 .battery-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
-.instructions { font-size: 11px; color: #6b7280; padding: 8px; text-align: center; }
+.instructions { font-size: 11px; color: #6b7280; padding: 8px; text-align: center; line-height: 1.5; }
+
 #chat-panel { width: 320px; background: #16213e; display: flex; flex-direction: column; border-left: 1px solid #2a2a4a; }
 #chat-header { padding: 10px 12px; border-bottom: 1px solid #2a2a4a; font-size: 13px; font-weight: 600; }
 #chat-messages { flex: 1; overflow-y: auto; padding: 10px; }
@@ -38,260 +57,61 @@ canvas { width: 100%; height: 100%; }
 #chat-send { background: #2563eb; color: #fff; border: none; border-radius: 6px; padding: 8px 12px; font-size: 12px; cursor: pointer; }
 #chat-send:hover { background: #1d4ed8; }
 .typing { color: #6b7280; font-style: italic; font-size: 11px; padding: 4px 10px; }
-
 </style>
 </head>
 <body>
 <div id="header">
-  <h1>🤖 Robo_Fleet Live</h1>
+  <div>
+    <span style="font-size:16px;font-weight:600;">PGuard - Novation City</span>
+    <span class="sub">Technopôle de Sousse · scroll to zoom · drag to pan · click to send goal</span>
+  </div>
   <span id="status" class="disconnected">Disconnected</span>
 </div>
 <div id="main">
   <div id="canvas-wrap">
     <canvas id="map"></canvas>
+    <div id="legend">
+      <div style="font-weight:600;margin-bottom:6px;font-size:11px;">Map</div>
+      <div class="row"><div class="swatch" style="background:#b43737"></div>Buildings (26)</div>
+      <div class="row"><div class="swatch" style="background:#e6d296"></div>Roads (~6%)</div>
+      <div class="row"><div class="swatch" style="background:#2d2d41"></div>Off-road (~93%)</div>
+      <div style="border-top:1px solid #2a2a4a;margin:6px 0 4px;"></div>
+      <div class="row"><div class="swatch" style="background:#8b5cf6;border-radius:50%"></div>PGuard (position + heading)</div>
+      <div class="row"><div class="swatch" style="background:#60a5fa"></div>Active goal</div>
+      <div class="row"><div class="swatch" style="background:#4ade80"></div>Planned path</div>
+    </div>
+    <div id="controls">
+      <button class="ctl-btn" id="btn-zoom-in">+</button>
+      <button class="ctl-btn" id="btn-zoom-out">−</button>
+      <button class="ctl-btn" id="btn-fit-map" title="Fit whole map">Fit</button>
+      <button class="ctl-btn" id="btn-follow" title="Follow robot">◎</button>
+    </div>
+    <div id="viewinfo">view: -- to -- m · zoom 1.0×</div>
   </div>
   <div id="sidebar">
     <div id="robots"></div>
-    <div class="instructions">Click on map to send nearest robot</div>
+    <div id="pguard-preview" style="margin-top:6px;">
+      <div style="font-size:11px;color:#9ca3af;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
+        <span>Real PGuard (Gazebo)</span>
+        <button id="btn-refresh-cam" title="Refresh camera" style="background:#2a2a4a;color:#e0e0e0;border:1px solid #3a3a5a;border-radius:4px;padding:2px 6px;font-size:10px;cursor:pointer;">↻</button>
+      </div>
+      <img id="pguard-chase-img" src="pguard_chase.png" alt="PGuard chase view"
+           style="width:100%;border-radius:6px;border:1px solid #2a2a4a;display:block;background:#0a0a1a;" />
+      <div style="font-size:10px;color:#6b7280;margin-top:2px;text-align:center;">chase cam · Gazebo Harmonic</div>
+    </div>
+    <div class="instructions">Click anywhere on the map to send the nearest online robot to that world coordinate. Scroll to zoom, drag to pan.</div>
   </div>
   <div id="chat-panel">
-    <div id="chat-header">🤖 Fleet Chat (AI)</div>
+    <div id="chat-header">Fleet Chat (AI)</div>
     <div id="chat-messages">
-      <div class="msg msg-bot">Hi! I can control your robot fleet. Try:<br>- "Send tb1 to the warehouse"<br>- "Fleet status"<br>- "Stop all robots"<br>- "Patrol tb3 through 3 waypoints"</div>
+      <div class="msg msg-bot">Hi! I can control PGuard. Try:<br>- "Where is pguard?"<br>- "Send pguard to the main entrance"<br>- "Patrol the perimeter"<br>- "Fleet status"</div>
     </div>
     <div id="chat-input-wrap">
-      <input id="chat-input" type="text" placeholder="Command your fleet..." autocomplete="off" />
+      <input id="chat-input" type="text" placeholder="Command PGuard..." autocomplete="off" />
       <button id="chat-send">Send</button>
     </div>
   </div>
-
 </div>
-
-<script>
-const canvas = document.getElementById('map');
-const ctx = canvas.getContext('2d');
-const robotsDiv = document.getElementById('robots');
-const statusEl = document.getElementById('status');
-
-// Map settings
-const MAP_MIN = -2.0, MAP_MAX = 2.0;
-let robots = [];
-let trails = {};  // robot_id -> [{x,y}]
-
-// WebSocket
-const WS_URL = new URLSearchParams(window.location.search).get('ws') || 'ws://localhost:8080';
-let ws = null;
-
-function connect() {
-  ws = new WebSocket(WS_URL);
-  ws.onopen = () => { statusEl.textContent = 'Connected'; statusEl.className = 'connected'; };
-  ws.onclose = () => { statusEl.textContent = 'Disconnected'; statusEl.className = 'disconnected'; setTimeout(connect, 2000); };
-  ws.onmessage = (e) => {
-    const data = JSON.parse(e.data);
-    if (data.type === 'fleet_state') {
-      robots = data.robots;
-      updateTrails();
-      render();
-      updateSidebar();
-    } else if (data.type === 'chat_response') {
-      const typing = document.getElementById('typing-indicator');
-      if (typing) typing.remove();
-      addChatMessage(data.message, 'bot');
-      if (data.tool_used) {
-        addChatMessage('\u26a1 ' + data.tool_used, 'tool');
-      }
-    }
-  };
-}
-
-function updateTrails() {
-  robots.forEach(r => {
-    if (!trails[r.id]) trails[r.id] = [];
-    trails[r.id].push({x: r.x, y: r.y});
-    if (trails[r.id].length > 100) trails[r.id].shift();
-  });
-}
-
-function worldToCanvas(x, y) {
-  const w = canvas.width, h = canvas.height;
-  const px = ((x - MAP_MIN) / (MAP_MAX - MAP_MIN)) * w;
-  const py = ((MAP_MAX - y) / (MAP_MAX - MAP_MIN)) * h;
-  return [px, py];
-}
-
-function canvasToWorld(px, py) {
-  const w = canvas.width, h = canvas.height;
-  const x = (px / w) * (MAP_MAX - MAP_MIN) + MAP_MIN;
-  const y = MAP_MAX - (py / h) * (MAP_MAX - MAP_MIN);
-  return [x, y];
-}
-
-function render() {
-  canvas.width = canvas.parentElement.clientWidth;
-  canvas.height = canvas.parentElement.clientHeight;
-  ctx.fillStyle = '#0f0f23';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // Grid
-  ctx.strokeStyle = '#1a1a3a';
-  ctx.lineWidth = 1;
-  for (let i = MAP_MIN; i <= MAP_MAX; i += 0.5) {
-    const [x1, y1] = worldToCanvas(i, MAP_MIN);
-    const [x2, y2] = worldToCanvas(i, MAP_MAX);
-    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-    const [x3, y3] = worldToCanvas(MAP_MIN, i);
-    const [x4, y4] = worldToCanvas(MAP_MAX, i);
-    ctx.beginPath(); ctx.moveTo(x3, y3); ctx.lineTo(x4, y4); ctx.stroke();
-  }
-
-  // Origin cross
-  ctx.strokeStyle = '#333';
-  ctx.lineWidth = 2;
-  const [ox, oy] = worldToCanvas(0, 0);
-  ctx.beginPath(); ctx.moveTo(ox - 10, oy); ctx.lineTo(ox + 10, oy); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(ox, oy - 10); ctx.lineTo(ox, oy + 10); ctx.stroke();
-
-  // Trails
-  const colors = ['#8b5cf6', '#06b6d4', '#f59e0b', '#ec4899', '#10b981'];
-  robots.forEach((r, idx) => {
-    const trail = trails[r.id] || [];
-    if (trail.length > 1) {
-      ctx.strokeStyle = colors[idx % colors.length] + '40';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      const [sx, sy] = worldToCanvas(trail[0].x, trail[0].y);
-      ctx.moveTo(sx, sy);
-      trail.forEach(p => { const [px, py] = worldToCanvas(p.x, p.y); ctx.lineTo(px, py); });
-      ctx.stroke();
-    }
-  });
-
-  // Robots
-  robots.forEach((r, idx) => {
-    const [rx, ry] = worldToCanvas(r.x, r.y);
-    const color = colors[idx % colors.length];
-
-    // Goal line
-    if (r.goal) {
-      const [gx, gy] = worldToCanvas(r.goal.x, r.goal.y);
-      ctx.strokeStyle = color + '60';
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(gx, gy); ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = color + '40';
-      ctx.beginPath(); ctx.arc(gx, gy, 6, 0, Math.PI * 2); ctx.fill();
-    }
-
-    // Robot body
-    ctx.fillStyle = r.online ? color : '#4b5563';
-    ctx.beginPath(); ctx.arc(rx, ry, 12, 0, Math.PI * 2); ctx.fill();
-
-    // Direction arrow
-    const dx = Math.cos(r.theta) * 16, dy = -Math.sin(r.theta) * 16;
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx + dx, ry + dy); ctx.stroke();
-
-    // Label
-    ctx.fillStyle = '#fff';
-    ctx.font = '10px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(r.id, rx, ry - 18);
-  });
-}
-
-function updateSidebar() {
-  const colors = ['#8b5cf6', '#06b6d4', '#f59e0b', '#ec4899', '#10b981'];
-  robotsDiv.innerHTML = robots.map((r, i) => {
-    const batColor = r.battery > 50 ? '#4ade80' : r.battery > 20 ? '#fbbf24' : '#f87171';
-    const statusClass = r.online ? (r.status === 'navigating' ? 'status-navigating' : 'status-idle') : 'status-offline';
-    return `<div class="robot-card">
-      <div class="robot-name" style="color:${colors[i % colors.length]}">${r.id}</div>
-      <div class="robot-pos">x: ${r.x.toFixed(2)}, y: ${r.y.toFixed(2)}</div>
-      <span class="robot-status ${statusClass}">${r.status}</span>
-      <div class="battery-bar"><div class="battery-fill" style="width:${r.battery}%;background:${batColor}"></div></div>
-    </div>`;
-  }).join('');
-}
-
-// Click to navigate
-canvas.addEventListener('click', (e) => {
-  const rect = canvas.getBoundingClientRect();
-  const px = e.clientX - rect.left, py = e.clientY - rect.top;
-  const [wx, wy] = canvasToWorld(px * (canvas.width / rect.width), py * (canvas.height / rect.height));
-
-  // Find nearest online robot
-  let nearest = null, minDist = Infinity;
-  robots.forEach(r => {
-    if (!r.online) return;
-    const d = Math.sqrt((r.x - wx) ** 2 + (r.y - wy) ** 2);
-    if (d < minDist) { minDist = d; nearest = r; }
-  });
-
-  if (nearest && ws && ws.readyState === 1) {
-    ws.send(JSON.stringify({ command: 'navigate', robot_id: nearest.id, x: wx, y: wy }));
-  }
-});
-
-
-
-// ─── CHAT ───
-const chatMessages = document.getElementById('chat-messages');
-const chatInput = document.getElementById('chat-input');
-const chatSend = document.getElementById('chat-send');
-
-function addChatMessage(text, type) {
-  const div = document.createElement('div');
-  div.className = `msg msg-${type}`;
-  div.innerHTML = text;
-  chatMessages.appendChild(div);
-  chatMessages.scrollTop = chatMessages.scrollHeight;
-}
-
-function sendChat() {
-  const text = chatInput.value.trim();
-  if (!text) return;
-  chatInput.value = '';
-  addChatMessage(text, 'user');
-
-  // Send to dashboard server
-  if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify({ command: 'chat', message: text }));
-    const typing = document.createElement('div');
-    typing.className = 'typing';
-    typing.id = 'typing-indicator';
-    typing.textContent = 'Thinking...';
-    chatMessages.appendChild(typing);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-  } else {
-    addChatMessage('Not connected to server', 'tool');
-  }
-}
-
-chatSend.addEventListener('click', sendChat);
-chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
-
-// Handle chat responses from server
-const origOnMessage = ws ? ws.onmessage : null;
-function handleWsMessage(e) {
-  const data = JSON.parse(e.data);
-  if (data.type === 'fleet_state') {
-    robots = data.robots;
-    updateTrails();
-    render();
-    updateSidebar();
-  } else if (data.type === 'chat_response') {
-    const typing = document.getElementById('typing-indicator');
-    if (typing) typing.remove();
-    addChatMessage(data.message, 'bot');
-    if (data.tool_used) {
-      addChatMessage(`⚡ ${data.tool_used}`, 'tool');
-    }
-  }
-}
-
-connect();
-window.addEventListener('resize', render);
-</script>
+<script src="live_dashboard.js"></script>
 </body>
 </html>
