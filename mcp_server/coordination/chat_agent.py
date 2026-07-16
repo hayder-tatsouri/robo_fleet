@@ -183,12 +183,12 @@ class FleetChatAgent:
             self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
             if not self.api_key:
                 raise ValueError("ANTHROPIC_API_KEY not set")
-            self.model = model or "claude-sonnet-4-20250514"
+            self.model = model or "claude-haiku-4-5-20251001"
             self.client = anthropic.Anthropic(api_key=self.api_key)
         elif provider == "bedrock":
             if not HAS_BOTO3:
                 raise ImportError("pip install boto3")
-            self.model = model or "anthropic.claude-sonnet-4-20250514-v1:0"
+            self.model = model or "anthropic.claude-haiku-4-5-20251001-v1:0"
             self.client = boto3.client(
                 "bedrock-runtime",
                 region_name=os.environ.get("AWS_REGION", "us-east-1"),
