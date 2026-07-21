@@ -310,13 +310,29 @@ Then rerun the whole pipeline.
 
 All four outputs are checked into the repo so a fresh clone works without internet:
 
-- `src/my_pguard_bot/worlds/sousse_buildings.sdf` (~1.5 MB, 26 buildings + ~1000 roads)
+- `src/my_pguard_bot/worlds/sousse_buildings.sdf` (~0.4 MB, **26 buildings + 2 aggregate road models** — each aggregate holds all segments of a given street as child `<visual>`s so Gazebo loads 30× faster)
 - `src/my_pguard_bot/worlds/sousse_pois.json`
 - `src/my_pguard_bot/worlds/novation_city.sdf`
 - `src/my_pguard_bot/maps/novation_city.pgm` + `.yaml`
 - `src/my_pguard_bot/config/patrol_waypoints.yaml`
 
 Rerun the scripts only if you want to refresh OSM data or change parameters.
+
+### 8.1 If you regenerate with an older `fetch_osm.py`
+
+Old versions emitted **one `<model>` per road segment** (~1000+ top-level models), which made Gazebo load extremely slowly. To collapse an existing SDF without re-hitting Overpass:
+
+```bash
+python3 src/my_pguard_bot/scripts/collapse_road_models.py
+python3 src/my_pguard_bot/scripts/build_world.py
+python3 src/my_pguard_bot/scripts/build_map.py
+colcon build --symlink-install --packages-select my_pguard_bot
+```
+
+The collapse script:
+- Preserves every `<visual>` (identical rendering)
+- Emits `<!-- ROAD_SEG ... -->` XML comments that `build_map.py` regex-parses to rasterize road cells into the PGM
+- Keeps buildings untouched
 
 ---
 

@@ -30,8 +30,10 @@ import math
 import pathlib
 import re
 
-WORLD_SDF = pathlib.Path("/workspace/src/my_pguard_bot/worlds/sousse_buildings.sdf")
-OUT_DIR = pathlib.Path("/workspace/src/my_pguard_bot/maps")
+HERE = pathlib.Path(__file__).resolve().parent
+PKG_ROOT = HERE.parent  # my_pguard_bot/
+WORLD_SDF = PKG_ROOT / "worlds" / "sousse_buildings.sdf"
+OUT_DIR = PKG_ROOT / "maps"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 EXTENT_M = 1200.0
@@ -44,22 +46,57 @@ V_ROAD = 254       # FREE (cheap)
 
 
 sdf = WORLD_SDF.read_text()
-model_re = re.compile(
-    r'<model[^>]*name="(?P<name>(?:bld|road)_[^"]+)"[^>]*>.*?'
+
+# Building models unchanged: each `bld_*` has its own <model><pose><box>.
+bld_re = re.compile(
+    r'<model[^>]*name="(?P<name>bld_[^"]+)"[^>]*>.*?'
     r'<pose>\s*(?P<x>-?[\d.]+)\s+(?P<y>-?[\d.]+)\s+(?P<z>-?[\d.]+)\s+'
     r'[\d.]+\s+[\d.]+\s+(?P<yaw>-?[\d.]+)\s*</pose>.*?'
     r'<box><size>\s*(?P<w>[\d.]+)\s+(?P<d>[\d.]+)\s+(?P<h>[\d.]+)\s*</size></box>',
     re.DOTALL,
 )
 
+# Roads: fetch_osm.py now emits ONE aggregate <model name="road_*"> per street
+# with many child <visual>s (much faster for Gazebo to load), and emits
+# `<!-- ROAD_SEG cx=.. cy=.. w=.. d=.. yaw=.. -->` XML comments for each
+# per-segment stamp so this rasterizer can still paint road cells.
+road_seg_re = re.compile(
+    r'<!--\s*ROAD_SEG\s+cx=(?P<cx>-?[\d.]+)\s+cy=(?P<cy>-?[\d.]+)\s+'
+    r'w=(?P<w>[\d.]+)\s+d=(?P<d>[\d.]+)\s+yaw=(?P<yaw>-?[\d.]+)\s*-->'
+)
+
 buildings: list[tuple[float, float, float, float, float]] = []
-roads: list[tuple[float, float, float, float, float]] = []
-for m in model_re.finditer(sdf):
-    kind = "bld" if m.group("name").startswith("bld_") else "road"
+for m in bld_re.finditer(sdf):
     cx = float(m.group("x")); cy = float(m.group("y"))
     yaw = float(m.group("yaw"))
     w = float(m.group("w")); d = float(m.group("d"))
-    (buildings if kind == "bld" else roads).append((cx, cy, w, d, yaw))
+    buildings.append((cx, cy, w, d, yaw))
+
+roads: list[tuple[float, float, float, float, float]] = []
+for m in road_seg_re.finditer(sdf):
+    roads.append((
+        float(m.group("cx")), float(m.group("cy")),
+        float(m.group("w")),  float(m.group("d")),
+        float(m.group("yaw")),
+    ))
+
+# Fallback: if no ROAD_SEG comments were found (e.g. the SDF was generated
+# by an older fetch_osm.py that emitted per-segment models), parse the
+# legacy `<model name="road_*"><pose>...<box>` layout.
+if not roads:
+    legacy_road_re = re.compile(
+        r'<model[^>]*name="(?P<name>road_[^"]+)"[^>]*>.*?'
+        r'<pose>\s*(?P<x>-?[\d.]+)\s+(?P<y>-?[\d.]+)\s+(?P<z>-?[\d.]+)\s+'
+        r'[\d.]+\s+[\d.]+\s+(?P<yaw>-?[\d.]+)\s*</pose>.*?'
+        r'<box><size>\s*(?P<w>[\d.]+)\s+(?P<d>[\d.]+)\s+(?P<h>[\d.]+)\s*</size></box>',
+        re.DOTALL,
+    )
+    for m in legacy_road_re.finditer(sdf):
+        roads.append((
+            float(m.group("x")), float(m.group("y")),
+            float(m.group("w")), float(m.group("d")),
+            float(m.group("yaw")),
+        ))
 
 print(f"Parsed {len(buildings)} buildings and {len(roads)} road segments")
 

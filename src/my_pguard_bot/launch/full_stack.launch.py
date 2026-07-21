@@ -39,7 +39,7 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('rviz')),
     )
 
-    localization = TimerAction(period=3.0, actions=[
+    localization = TimerAction(period=1.5, actions=[
         IncludeLaunchDescription(PythonLaunchDescriptionSource(
             PathJoinSubstitution([pkg, 'launch', 'localization.launch.py'])
         ))
@@ -51,7 +51,7 @@ def generate_launch_description():
         'velocity_smoother',
     ]
 
-    nav2 = TimerAction(period=6.0, actions=[
+    nav2 = TimerAction(period=3.0, actions=[
         Node(package='nav2_controller',        executable='controller_server',
              parameters=[nav2_params], output='screen'),
         Node(package='nav2_smoother',          executable='smoother_server',

@@ -4,19 +4,42 @@ By default runs Gazebo in headless server-only mode (`gz sim -s`). Pass
 `use_gui:=true` to also start the Gazebo GUI on a GPU-capable host.
 """
 
+import os
+import subprocess
+
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
-from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
+
+
+def _cached_urdf() -> str:
+    """Expand pguard.urdf.xacro once per install and cache the result.
+
+    Re-running xacro on every launch adds 1-2 s of subprocess overhead and
+    is redundant when the xacro file hasn't changed. We stamp the xacro's
+    mtime into the cache filename so an edit invalidates the cache
+    automatically.
+    """
+    pkg_share = get_package_share_directory('my_pguard_bot')
+    xacro_file = os.path.join(pkg_share, 'description', 'pguard.urdf.xacro')
+    mtime = int(os.path.getmtime(xacro_file))
+    cache_dir = os.path.expanduser('~/.cache/pguard')
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_path = os.path.join(cache_dir, f'pguard.{mtime}.urdf')
+    if not os.path.exists(cache_path):
+        urdf = subprocess.check_output(['xacro', xacro_file], text=True)
+        with open(cache_path, 'w') as fh:
+            fh.write(urdf)
+    return cache_path
 
 
 def generate_launch_description():
     pkg = FindPackageShare('my_pguard_bot')
 
-    xacro_file = PathJoinSubstitution([pkg, 'description', 'pguard.urdf.xacro'])
     world_file = PathJoinSubstitution([pkg, 'worlds', 'novation_city.sdf'])
     bridge_yaml = PathJoinSubstitution([pkg, 'config', 'bridge.yaml'])
 
@@ -39,9 +62,9 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('use_gui')),
     )
 
-    robot_description = {
-        'robot_description': ParameterValue(Command(['xacro ', xacro_file]), value_type=str)
-    }
+    urdf_path = _cached_urdf()
+    with open(urdf_path) as fh:
+        robot_description = {'robot_description': fh.read()}
 
     rsp = Node(
         package='robot_state_publisher',

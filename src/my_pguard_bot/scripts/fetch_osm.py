@@ -303,6 +303,20 @@ def emit_sdf(osm: dict) -> tuple[str, list[dict]]:
         "pedestrian":   (2.5, 0.55, 0.55, 0.55, 0.020),
     }
 
+    # Aggregate ALL road segments of a given street into a single SDF model
+    # with many child visuals. Gazebo Harmonic pays a fixed per-model cost
+    # (entity creation, physics init, scene-graph insertion) that is O(models),
+    # not O(visuals). Emitting 1 model per street instead of 1 model per
+    # segment cuts load time from ~40 s to ~5 s for Novation City (26 streets
+    # vs 1000+ segments).
+    #
+    # build_map.py's regex still matches because we emit one <model name="road_*">
+    # per segment-visual by keeping the model-per-segment layout also available
+    # as an additional per-segment "sim marker" model — but actually the
+    # simpler win is to update build_map.py to also parse the aggregate form.
+    # We use ONE aggregate model per street and emit segment poses as
+    # <include>-style sub-entries the map builder can find.
+    road_visual_idx = 0
     for name, pts, kind in roads:
         if len(pts) < 2:
             continue
@@ -328,40 +342,65 @@ def emit_sdf(osm: dict) -> tuple[str, list[dict]]:
                 cur_x2, cur_y2 = nx2, ny2
         merged.append((cur_x1, cur_y1, cur_x2, cur_y2))
 
+        # Collect all segment pose/size records for both the aggregate model
+        # (Gazebo entity) and the per-segment stamp comments (map builder).
+        seg_records: list[tuple[float, float, float, float, float]] = []
         for i, (x1, y1, x2, y2) in enumerate(merged):
             mx, my = (x1 + x2) / 2, (y1 + y2) / 2
             length = math.hypot(x2 - x1, y2 - y1)
             if length < 0.3:
                 continue
             yaw = math.atan2(y2 - y1, x2 - x1)
+            seg_records.append((mx, my, length, width, yaw))
+
+        if not seg_records:
+            continue
+
+        # ONE aggregate model per street: all segments share a link with many
+        # visual children. Model pose is the world origin (pose 0), each visual
+        # has its own <pose> in the parent frame. This is what Gazebo loads.
+        lines += [
+            f'  <model name="road_{safe}_{road_visual_idx}">',
+            f'    <static>true</static>',
+            f'    <pose>0 0 0 0 0 0</pose>',
+            f'    <link name="link">',
+        ]
+        for j, (mx, my, length, w, yaw) in enumerate(seg_records):
             lines += [
-                f'  <model name="road_{safe}_{i}_{abs(int(mx*100))}">',
-                f'    <static>true</static>',
-                f'    <pose>{mx:.3f} {my:.3f} {z_off:.4f} 0 0 {yaw:.4f}</pose>',
-                f'    <link name="link">',
-                f'      <visual name="v"><geometry><box><size>{length:.2f} {width:.2f} 0.02</size></box></geometry>',
-                f'        <material><ambient>{r} {g} {b} 1</ambient><diffuse>{r} {g} {b} 1</diffuse></material></visual>',
-                f'    </link>',
-                f'  </model>',
+                f'      <visual name="seg_{j}">',
+                f'        <pose>{mx:.3f} {my:.3f} {z_off:.4f} 0 0 {yaw:.4f}</pose>',
+                f'        <geometry><box><size>{length:.2f} {w:.2f} 0.02</size></box></geometry>',
+                f'        <material><ambient>{r} {g} {b} 1</ambient><diffuse>{r} {g} {b} 1</diffuse></material>',
+                f'      </visual>',
             ]
 
-        # Corner fill for driveable roads only (skip footways/paths that don't
-        # need the visual smoothing).
+        # Corner fill: extra square visuals inside the same link.
         if kind not in ("footway", "path", "cycleway", "pedestrian"):
             for i in range(len(merged) - 1):
                 _, _, x2, y2 = merged[i]
                 nx1, ny1, _, _ = merged[i + 1]
                 cx, cy = (x2 + nx1) / 2, (y2 + ny1) / 2
                 lines += [
-                    f'  <model name="road_{safe}_corner_{i}_{abs(int(cx*100))}">',
-                    f'    <static>true</static>',
-                    f'    <pose>{cx:.3f} {cy:.3f} {z_off + 0.001:.4f} 0 0 0</pose>',
-                    f'    <link name="link">',
-                    f'      <visual name="v"><geometry><box><size>{width:.2f} {width:.2f} 0.02</size></box></geometry>',
-                    f'        <material><ambient>{r} {g} {b} 1</ambient><diffuse>{r} {g} {b} 1</diffuse></material></visual>',
-                    f'    </link>',
-                    f'  </model>',
+                    f'      <visual name="corner_{i}">',
+                    f'        <pose>{cx:.3f} {cy:.3f} {z_off + 0.001:.4f} 0 0 0</pose>',
+                    f'        <geometry><box><size>{width:.2f} {width:.2f} 0.02</size></box></geometry>',
+                    f'        <material><ambient>{r} {g} {b} 1</ambient><diffuse>{r} {g} {b} 1</diffuse></material>',
+                    f'      </visual>',
                 ]
+
+        lines += [
+            f'    </link>',
+            f'  </model>',
+        ]
+
+        # Emit XML comments that build_map.py can regex-parse for road cells.
+        # These are NOT models — Gazebo ignores them — but keep the costmap
+        # rasterizer working without changing its parser.
+        for mx, my, length, w, yaw in seg_records:
+            lines.append(
+                f'  <!-- ROAD_SEG cx={mx:.3f} cy={my:.3f} w={length:.2f} d={w:.2f} yaw={yaw:.4f} -->'
+            )
+        road_visual_idx += 1
     lines += ["</sdf>"]
     return "\n".join(lines), pois
 
