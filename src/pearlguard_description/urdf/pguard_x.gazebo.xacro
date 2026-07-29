@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+<xacro:arg name="namespace" default=""/>
+
+<gazebo reference="base_link">
+<material>Gazebo/Orange</material>
+</gazebo>
+
+<!-- 4WD differential drive (replaces Classic skid_steer + ros_control) -->
+<!-- 4WD differential drive (replaces Classic skid_steer + ros_control) -->
+<gazebo>
+<plugin filename="libgz-sim-diff-drive-system.so" name="gz::sim::systems::DiffDrive">
+<left_joint>frontLeft_wheel_joint</left_joint>
+<left_joint>rearLeft_wheel_joint</left_joint>
+<right_joint>frontRight_wheel_joint</right_joint>
+<right_joint>rearRight_wheel_joint</right_joint>
+<wheel_separation>0.920</wheel_separation>
+<wheel_radius>0.200</wheel_radius>
+<topic>$(arg namespace)/cmd_vel</topic>
+<odom_topic>$(arg namespace)/odom</odom_topic>
+<frame_id>odom</frame_id>
+<child_frame_id>base_footprint</child_frame_id>
+
+<!-- THE CRITICAL MISSING FIX: Force Gazebo to stop hijacking the TF Tree -->
+<publish_odom_tf>false</publish_odom_tf>
+
+</plugin>
+</gazebo>
+
+
+<!-- Publish joint states for ros2_control / ros2 topic bridge -->
+<gazebo>
+  <plugin filename="libgz-sim-joint-state-publisher-system.so" name="gz::sim::systems::JointStatePublisher">
+    <topic>$(arg namespace)/joint_states</topic>
+  </plugin>
+</gazebo>
+<!-- GPS / NavSat (replaces Classic hector_gazebo_ros_gps) -->
+<gazebo reference="base_link">
+<sensor name="navsat_sensor" type="navsat">
+<always_on>1</always_on>
+<update_rate>10</update_rate>
+<visualize>true</visualize>
+<gz_frame_id>base_footprint</gz_frame_id>
+<topic>$(arg namespace)/navsat</topic>
+<plugin filename="libgz-sim-navsat-system.so" name="gz::sim::systems::NavSat">
+<reference_latitude>35.8173</reference_latitude>
+<reference_longitude>10.5912</reference_longitude>
+</plugin>
+</sensor>
+</gazebo>
+
+</robot>

@@ -8,7 +8,7 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     pkg = FindPackageShare('my_pguard_bot')
-    ekf_config = PathJoinSubstitution([pkg, 'config', 'ekf.yaml'])
+    ekf_config = PathJoinSubstitution([pkg, 'config', f'ekf_{name}.yaml'])
 
     ekf_local = Node(
         package='robot_localization',

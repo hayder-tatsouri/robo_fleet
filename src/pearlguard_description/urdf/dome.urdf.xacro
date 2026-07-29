@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+<robot name="pguard_x" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:property name="domeHeight" value="0.40"/>
+  <xacro:property name="domeRadius" value="0.30"/>
+  <xacro:property name="domeMass" value="10"/>
+
+  <xacro:macro name="dome" params="xyz parent">
+
+    <link name="dome">
+
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 ${PI/2}" />
+        <geometry>
+          <mesh filename="package://pearlguard_description/meshes/pguard_x/dome.dae" />
+        </geometry>
+        <material name="grey20"/>
+      </visual>
+
+      <inertial>
+        <origin xyz="0 0 0.30" rpy="0 0 ${PI/2}" />
+        <mass value="${domeMass}"/>
+        <xacro:cylinder_inertia m="${domeMass}" r="${domeRadius}" h="${domeHeight}"/>
+      </inertial>
+    </link>
+
+    <joint name="dome_joint" type="continuous">
+        <parent link="${parent}"/>
+        <child link="dome"/>
+        <origin xyz="${xyz}" rpy="0 0 0" />
+        <axis xyz="0 0 1" />
+        <limit effort="100" velocity="100"/>
+        <joint_properties damping="0.0" friction="0.0"/>
+    </joint>
+
+    <gazebo reference="dome">
+      <mu1 value=".62"/>
+      <mu2 value=".62"/> 
+      <kp  value="10000000.0" />
+      <kd  value="1.0" />
+      <fdir1 value="0 0 1"/>
+      <turnGravityOff>false</turnGravityOff>
+      <material>Gazebo/Grey</material>
+    </gazebo>
+
+    <transmission name="dome_trans">
+      <type>transmission_interface/SimpleTransmission</type>
+      <joint name="dome_joint">
+        <hardwareInterface>hardware_interface/VelocityJointInterface</hardwareInterface>
+      </joint>         
+      <actuator name="dome_motor">
+        <hardwareInterface>hardware_interface/VelocityJointInterface</hardwareInterface>
+        <mechanicalReduction>10</mechanicalReduction>
+      </actuator>         
+    </transmission>
+
+  </xacro:macro>
+
+
+</robot>

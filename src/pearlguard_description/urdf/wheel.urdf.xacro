@@ -1,0 +1,65 @@
+<?xml version="1.0"?>
+<robot name="pearlguard" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:property name="wheelWidth" value="0.13"/>
+  <xacro:property name="wheelMass" value="5"/>
+
+  <xacro:macro name="wheel" params="name xyz parent">
+
+    <link name="${name}_wheel">
+      <collision>
+        <origin xyz="0 0 0" rpy="0 ${PI/2} ${PI/2}" />
+        <geometry>
+          <cylinder length="${wheelWidth}" radius="${wheelRadius}"/>
+        </geometry>
+      </collision>
+
+      <visual>
+        <origin xyz="0 0 0" rpy="0 ${PI/2} ${PI/2}" />
+        <geometry>
+          <mesh filename="package://pearlguard_description/meshes/pguard_x/roue_alroc.STL" />
+        </geometry>
+        <material name="grey20"/>
+      </visual>
+
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 ${PI/2} ${PI/2}" />
+        <mass value="${wheelMass}"/>
+        <xacro:cylinder_inertia m="${wheelMass}" r="${wheelRadius}" h="${wheelWidth}"/>
+      </inertial>
+    </link>
+
+    <joint name="${name}_wheel_joint" type="continuous">
+        <parent link="${parent}"/>
+        <child link="${name}_wheel"/>
+        <origin xyz="${xyz}" rpy="0 0 0" />
+        <axis xyz="0 1 0" />
+        <limit effort="100" velocity="100"/>
+        <joint_properties damping="0.0" friction="0.0"/>
+    </joint>
+
+    <gazebo reference="${name}_wheel">
+      <mu1 value="1.2"/>
+      <mu2 value="1.0"/>
+      <kp  value="10000000.0" />
+      <kd  value="1000.0" />
+      <fdir1 value="0 -1 0"/>
+      <turnGravityOff>false</turnGravityOff>
+      <material>Gazebo/DarkGrey</material>
+    </gazebo>
+
+    <transmission name="${name}_trans">
+      <type>transmission_interface/SimpleTransmission</type>
+      <joint name="${name}_wheel_joint">
+        <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+      </joint>         
+      <actuator name="${name}_motor">
+        <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+        <mechanicalReduction>10</mechanicalReduction>
+      </actuator>         
+    </transmission>
+
+  </xacro:macro>
+
+
+</robot>

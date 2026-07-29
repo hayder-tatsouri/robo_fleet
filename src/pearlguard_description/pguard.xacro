@@ -1,0 +1,79 @@
+<?xml version="1.0"?>
+<robot name="pguard_x" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- Put here the robot description -->
+
+  <xacro:property name="PI" value="3.1415926535897931"/>
+
+  <xacro:property name="chassisMass" value="80"/>
+  <xacro:property name="wheelRadius" value="0.200" />
+  <xacro:property name="Lw" value="0.920" />
+  <xacro:property name="Lz" value="0.0" />
+  <xacro:property name="Lxf" value="0.29" />
+  <xacro:property name="Lxr" value="0.29" />
+
+  <xacro:include filename="urdf/pguard_x.gazebo.xacro"/>
+  <xacro:include filename="urdf/materials.xacro" />
+  <xacro:include filename="urdf/inertia.xacro" />
+  
+  <link name="base_footprint" />
+
+  <joint name="base_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0.20" rpy="0 0 0" />
+  </joint>
+  
+  <!-- base_link -->
+
+  <link name='base_link'>
+    <visual> 
+      <origin xyz="0.0 0.0 0" rpy="0 0 0"/> 
+      <geometry> 
+        <mesh filename="package://pearlguard_description/meshes/pguard_x/chassis.dae" />
+      </geometry> 
+      <material name="grey50"/>
+    </visual>
+    <visual> 
+      <origin xyz="-0.45 0.0 0.650" rpy="0 0 ${PI/2}"/> 
+      <geometry> 
+        <mesh filename="package://pearlguard_description/meshes/pguard_x/mat.dae" />
+      </geometry> 
+      <material name="grey20"/>
+    </visual>
+    <collision>
+      <origin xyz="0.10 0.0 0.25" rpy="0 0 0"/>
+      <geometry>
+        <box size="1.4 0.75 0.60" />
+      </geometry>
+    </collision>
+    <inertial> 
+      <origin xyz="0 0 0" rpy="0 0 0"/> 
+      <mass value="${chassisMass}"/> 
+      <xacro:box_inertia m="${chassisMass}" x="1.0" y="0.57" z="0.35"/>
+    </inertial>
+  </link>
+
+  <!-- Dome -->
+  <xacro:include filename="urdf/dome.urdf.xacro" />
+  <xacro:dome xyz="0 0 0.65" parent="base_link"/>
+
+  <!-- Wheels -->
+  <xacro:include filename="urdf/wheel.urdf.xacro" />
+  <xacro:wheel name="frontLeft"  xyz="${+Lxf} ${+Lw/2} ${-Lz}" parent="base_link"/>
+  <xacro:wheel name="rearLeft"   xyz="${-Lxr} ${+Lw/2} ${-Lz}" parent="base_link"/>
+  <xacro:wheel name="frontRight" xyz="${+Lxf} ${-Lw/2} ${-Lz}" parent="base_link"/>
+  <xacro:wheel name="rearRight"  xyz="${-Lxr} ${-Lw/2} ${-Lz}" parent="base_link"/>
+  
+  <!-- Lidar -->
+  <xacro:include filename="urdf/VLP-16.urdf.xacro"/>
+  <xacro:VLP-16 parent="base_link" name="velodyne" topic="ouster/points" hz="10" samples="360" gpu="true" min_range="0.45" >
+    <origin xyz="0.50 0.00 0.65" rpy="0 0 0" />
+  </xacro:VLP-16>
+
+  <!-- IMU -->
+  <xacro:include filename="urdf/imu.urdf.xacro"/>
+  <xacro:property name="M_PI" value="3.1415926535897931" />
+  <xacro:sensor_imu parent="base_link" name="imu" colour="blue" imu_px="0.192" imu_py="0.0" imu_pz="${0.01}" imu_or="0.0" imu_op="${-M_PI/2.0}" imu_oy="0.0"/>
+ 
+</robot>

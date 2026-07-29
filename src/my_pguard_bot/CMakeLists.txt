@@ -26,4 +26,10 @@ install(PROGRAMS
   RENAME robo_fleet_adapter
 )
 
+install(PROGRAMS
+  scripts/gps_tf_publisher.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME gps_tf_publisher
+)
+
 ament_package()

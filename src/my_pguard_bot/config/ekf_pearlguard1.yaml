@@ -1,7 +1,4 @@
-# PGuard dual-EKF localization, tuned for RTK-precision GPS.
-# Datum is set to Novation City / Technopole de Sousse (35.8173, 10.5912).
-
-ekf_local:
+/pearlguard1/ekf_local:
   ros__parameters:
     use_sim_time: true
     frequency: 30.0
@@ -9,12 +6,10 @@ ekf_local:
     two_d_mode: true
     publish_tf: true
 
-    map_frame: map
-    odom_frame: odom
     base_link_frame: base_footprint
     world_frame: odom
-
-    odom0: odom
+    
+    odom0: /pearlguard1/odom
     odom0_config: [false, false, false,
                    false, false, false,
                    true,  true,  false,
@@ -24,18 +19,18 @@ ekf_local:
     odom0_relative: false
     odom0_queue_size: 10
 
-    imu0: imu/data
+    imu0: /pearlguard1/imu/data
     imu0_config: [false, false, false,
                   false, false, false,
                   false, false, false,
-                  false, false, true,
-                  true,  false, false]
+                  false, false, false,
+                  false, false, false]
     imu0_differential: false
     imu0_relative: false
     imu0_queue_size: 10
     imu0_remove_gravitational_acceleration: true
 
-ekf_global:
+/pearlguard1/ekf_global:
   ros__parameters:
     use_sim_time: true
     frequency: 30.0
@@ -44,11 +39,10 @@ ekf_global:
     publish_tf: true
 
     map_frame: map
-    odom_frame: odom
     base_link_frame: base_footprint
     world_frame: map
-
-    odom0: odom
+    
+    odom0: /pearlguard1/odom
     odom0_config: [false, false, false,
                    false, false, false,
                    true,  true,  false,
@@ -58,7 +52,7 @@ ekf_global:
     odom0_relative: false
     odom0_queue_size: 10
 
-    odom1: odometry/gps
+    odom1: /pearlguard1/odometry/gps
     odom1_config: [true,  true,  false,
                    false, false, false,
                    false, false, false,
@@ -68,31 +62,31 @@ ekf_global:
     odom1_relative: false
     odom1_queue_size: 10
 
-    imu0: imu/data
+    imu0: /pearlguard1/imu/data
     imu0_config: [false, false, false,
-                   false, false, true,
                    false, false, false,
-                   false, false, true,
-                   true,  false, false]
+                   false, false, false,
+                   false, false, false,
+                   false, false, false]
     imu0_differential: false
     imu0_relative: false
     imu0_queue_size: 10
     imu0_remove_gravitational_acceleration: true
 
-navsat_transform:
+/pearlguard1/navsat_transform:
   ros__parameters:
     use_sim_time: true
     frequency: 30.0
     delay: 3.0
-
-    # Sousse magnetic declination is small (~+1 to +2 deg East). Set to
-    # 0.0349 rad (2 deg) if using real magnetometer data.
     magnetic_declination_radians: 0.0
     yaw_offset: 0.0
-
     zero_altitude: true
     broadcast_utm_transform: false
     publish_filtered_gps: true
-    use_odometry_yaw: false
+    use_odometry_yaw: true
     wait_for_datum: true
     datum: [35.8173, 10.5912, 0.0]
+    
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_footprint

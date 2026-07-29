@@ -5,7 +5,7 @@ bt_navigator:
   ros__parameters:
     use_sim_time: true
     global_frame: map
-    robot_base_frame: base_footprint
+    robot_base_frame: pearlguard2/base_footprint
     odom_topic: odometry/filtered
     bt_loop_duration: 10
     default_server_timeout: 20
@@ -67,8 +67,8 @@ local_costmap:
       use_sim_time: true
       update_frequency: 5.0
       publish_frequency: 2.0
-      global_frame: odom
-      robot_base_frame: base_footprint
+      global_frame: pearlguard2/odom  
+      robot_base_frame: pearlguard2/base_footprint
       rolling_window: true
       width: 15
       height: 15
@@ -103,7 +103,7 @@ global_costmap:
       update_frequency: 1.0
       publish_frequency: 0.5     # was 1.0 - halves DDS bandwidth for the 1.44 M-cell grid
       global_frame: map
-      robot_base_frame: base_footprint
+      robot_base_frame: pearlguard2/base_footprint
       robot_radius: 0.95
       resolution: 1.0    # 1 m/cell outdoors -> 1200x1200 -> 1.44M cells (~1.4 MB)
       track_unknown_space: true
@@ -178,9 +178,9 @@ behavior_server:
     backup:           {plugin: "nav2_behaviors::BackUp"}
     drive_on_heading: {plugin: "nav2_behaviors::DriveOnHeading"}
     wait:             {plugin: "nav2_behaviors::Wait"}
-    local_frame: odom
+    local_frame: pearlguard2/odom
     global_frame: map
-    robot_base_frame: base_footprint
+    robot_base_frame: pearlguard2/base_footprint
     transform_tolerance: 0.3
     simulate_ahead_time: 2.0
     max_rotational_vel: 0.8

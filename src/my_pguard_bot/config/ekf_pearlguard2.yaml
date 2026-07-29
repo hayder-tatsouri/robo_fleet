@@ -1,7 +1,7 @@
 # PGuard dual-EKF localization, tuned for RTK-precision GPS.
 # Datum is set to Novation City / Technopole de Sousse (35.8173, 10.5912).
 
-ekf_local:
+/pearlguard2/ekf_local:
   ros__parameters:
     use_sim_time: true
     frequency: 30.0
@@ -9,12 +9,12 @@ ekf_local:
     two_d_mode: true
     publish_tf: true
 
-    map_frame: map
-    odom_frame: odom
-    base_link_frame: base_footprint
-    world_frame: odom
-
+    odom_frame: pearlguard2/odom
+    base_link_frame: pearlguard2/base_footprint
+    world_frame: pearlguard2/odom
     odom0: odom
+
+    
     odom0_config: [false, false, false,
                    false, false, false,
                    true,  true,  false,
@@ -35,7 +35,7 @@ ekf_local:
     imu0_queue_size: 10
     imu0_remove_gravitational_acceleration: true
 
-ekf_global:
+/pearlguard2/ekf_global:
   ros__parameters:
     use_sim_time: true
     frequency: 30.0
@@ -43,11 +43,10 @@ ekf_global:
     two_d_mode: true
     publish_tf: true
 
-    map_frame: map
-    odom_frame: odom
-    base_link_frame: base_footprint
-    world_frame: map
-
+    odom_frame: pearlguard2/odom
+    base_link_frame: pearlguard2/base_footprint
+    world_frame: map          # stays shared, unprefixed
+    
     odom0: odom
     odom0_config: [false, false, false,
                    false, false, false,
@@ -79,17 +78,13 @@ ekf_global:
     imu0_queue_size: 10
     imu0_remove_gravitational_acceleration: true
 
-navsat_transform:
+/pearlguard2/navsat_transform:
   ros__parameters:
     use_sim_time: true
     frequency: 30.0
     delay: 3.0
-
-    # Sousse magnetic declination is small (~+1 to +2 deg East). Set to
-    # 0.0349 rad (2 deg) if using real magnetometer data.
     magnetic_declination_radians: 0.0
     yaw_offset: 0.0
-
     zero_altitude: true
     broadcast_utm_transform: false
     publish_filtered_gps: true
