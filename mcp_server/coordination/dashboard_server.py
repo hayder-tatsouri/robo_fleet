@@ -292,7 +292,13 @@ class DashboardServer:
                             )
                         else:
                             loop.run_until_complete(
-                                self._broadcast_chat_response("Done.", None)
+                                self._broadcast_chat_response(
+                                    "I can help you control the robot fleet. Try:\n"
+                                    "- \"Where is pguard?\"\n"
+                                    "- \"Send tb1 to coordinates 5, 3\"\n"
+                                    "- \"Fleet status\"\n"
+                                    "- \"Check obstacles near tb2\"", None
+                                )
                             )
 
         except Exception as e:
