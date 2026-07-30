@@ -68,6 +68,13 @@ function handleWsMessage(e) {
     // { type: 'plan', robot_id: 'pguard', poses: [{x,y}, ...] }
     plans[data.robot_id] = data.poses || [];
     render();
+  } else if (data.type === 'chat_step') {
+    const typing = document.getElementById('typing-indicator');
+    if (data.status === 'running') {
+      if (typing) typing.textContent = data.agent + ' agent running...';
+    } else if (data.status === 'done') {
+      if (typing) typing.textContent = 'Processing...';
+    }
   } else if (data.type === 'chat_response') {
     const typing = document.getElementById('typing-indicator');
     if (typing) typing.remove();

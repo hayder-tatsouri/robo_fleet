@@ -20,6 +20,18 @@ except ImportError:
     HAS_WEBSOCKETS = False
 
 
+def _strip_markdown(text: str) -> str:
+    """Remove common markdown formatting for dashboard display."""
+    import re
+    text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+    text = re.sub(r'\*(.+?)\*', r'\1', text)
+    text = re.sub(r'`(.+?)`', r'\1', text)
+    text = re.sub(r'^#+\s+', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^[-*]\s+', '  • ', text, flags=re.MULTILINE)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+
+
 class DashboardServer:
     """WebSocket server that streams fleet state to connected browsers."""
 
@@ -190,6 +202,16 @@ class DashboardServer:
             except:
                 pass
 
+    async def _broadcast_chat_step(self, agent: str, status: str):
+        """Send intermediate step info showing which agent is running."""
+        label = agent.replace("_agent", "").replace("_", " ").title()
+        payload = json.dumps({"type": "chat_step", "agent": label, "status": status})
+        for client in self.clients.copy():
+            try:
+                await client.send(payload)
+            except:
+                pass
+
     def _send_nav_goal(self, robot_id, x, y):
         """Send a Nav2 NavigateToPose goal via rosbridge."""
         try:
@@ -230,18 +252,54 @@ class DashboardServer:
             self.fleet.set_robot_status(robot_id, "idle")
 
     def _handle_chat(self, message):
-        """Handle chat message in background thread."""
+        """Handle chat message in background thread using LangGraph."""
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         try:
-            response = self.chat_agent.chat(message)
-            # Broadcast response to all clients
-            import asyncio
-            loop = asyncio.new_event_loop()
-            loop.run_until_complete(self._broadcast_chat_response(response, None))
-            loop.close()
+            from graph.graph import graph
+
+            last_response = None
+
+            for step in graph.stream({"messages": [{"role": "user", "content": message}]}):
+                for node, data in step.items():
+                    if node == "__start__":
+                        continue
+
+                    if not isinstance(data, dict):
+                        continue
+
+                    action = data.get("next", "executed")
+
+                    if node == "supervisor" and action != "__end__":
+                        loop.run_until_complete(
+                            self._broadcast_chat_step(action, "running")
+                        )
+
+                    if action == "executed" and node != "supervisor":
+                        loop.run_until_complete(
+                            self._broadcast_chat_step(node, "done")
+                        )
+                        resp = data.get("response")
+                        if resp:
+                            last_response = resp
+
+                    if action == "__end__":
+                        resp = data.get("response") or last_response
+                        if resp:
+                            text = _strip_markdown(str(resp))
+                            loop.run_until_complete(
+                                self._broadcast_chat_response(text, None)
+                            )
+                        else:
+                            loop.run_until_complete(
+                                self._broadcast_chat_response("Done.", None)
+                            )
+
         except Exception as e:
-            import asyncio
-            loop = asyncio.new_event_loop()
-            loop.run_until_complete(self._broadcast_chat_response(f"Error: {e}", None))
+            loop.run_until_complete(
+                self._broadcast_chat_response(f"Error: {e}", None)
+            )
+        finally:
             loop.close()
 
     # ────────────────────────────────────────────────────────────
