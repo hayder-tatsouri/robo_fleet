@@ -50,6 +50,7 @@ from tools.natural_language import (                      # noqa: F401
     list_locations, add_location, remove_location,
     go_to_location, send_nearest_to,
 )
+from tools.chat import robot_chat                         # noqa: F401
 
 
 def _log(msg: str) -> None:
