@@ -1,6 +1,3 @@
-# PGuard dual-EKF localization, tuned for RTK-precision GPS.
-# Datum is set to Novation City / Technopole de Sousse (35.8173, 10.5912).
-
 /pearlguard2/ekf_local:
   ros__parameters:
     use_sim_time: true
@@ -9,12 +6,10 @@
     two_d_mode: true
     publish_tf: true
 
-    odom_frame: pearlguard2/odom
-    base_link_frame: pearlguard2/base_footprint
-    world_frame: pearlguard2/odom
-    odom0: odom
-
+    base_link_frame: base_footprint
+    world_frame: odom
     
+    odom0: /pearlguard2/odom
     odom0_config: [false, false, false,
                    false, false, false,
                    true,  true,  false,
@@ -24,12 +19,12 @@
     odom0_relative: false
     odom0_queue_size: 10
 
-    imu0: imu/data
+    imu0: /pearlguard2/imu/data
     imu0_config: [false, false, false,
                   false, false, false,
                   false, false, false,
-                  false, false, true,
-                  true,  false, false]
+                  false, false, false,
+                  false, false, false]
     imu0_differential: false
     imu0_relative: false
     imu0_queue_size: 10
@@ -43,11 +38,11 @@
     two_d_mode: true
     publish_tf: true
 
-    odom_frame: pearlguard2/odom
-    base_link_frame: pearlguard2/base_footprint
-    world_frame: map          # stays shared, unprefixed
+    map_frame: map
+    base_link_frame: base_footprint
+    world_frame: map
     
-    odom0: odom
+    odom0: /pearlguard2/odom
     odom0_config: [false, false, false,
                    false, false, false,
                    true,  true,  false,
@@ -57,7 +52,7 @@
     odom0_relative: false
     odom0_queue_size: 10
 
-    odom1: odometry/gps
+    odom1: /pearlguard2/odometry/gps
     odom1_config: [true,  true,  false,
                    false, false, false,
                    false, false, false,
@@ -67,12 +62,12 @@
     odom1_relative: false
     odom1_queue_size: 10
 
-    imu0: imu/data
+    imu0: /pearlguard2/imu/data
     imu0_config: [false, false, false,
-                   false, false, true,
                    false, false, false,
-                   false, false, true,
-                   true,  false, false]
+                   false, false, false,
+                   false, false, false,
+                   false, false, false]
     imu0_differential: false
     imu0_relative: false
     imu0_queue_size: 10
@@ -88,6 +83,10 @@
     zero_altitude: true
     broadcast_utm_transform: false
     publish_filtered_gps: true
-    use_odometry_yaw: false
+    use_odometry_yaw: true
     wait_for_datum: true
     datum: [35.8173, 10.5912, 0.0]
+    
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_footprint

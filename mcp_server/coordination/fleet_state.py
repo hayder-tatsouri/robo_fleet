@@ -167,9 +167,8 @@ class FleetStateManager:
             # Subscribe to all topics for all robots
             for robot_id in self.robots:
                 topics = [
-                    (f"/{robot_id}/amcl_pose", "geometry_msgs/msg/PoseWithCovarianceStamped"),
-                    (f"/{robot_id}/battery_state", "sensor_msgs/msg/BatteryState"),
-                    (f"/{robot_id}/scan", "sensor_msgs/msg/LaserScan"),
+                    (f"/{robot_id}/odometry/filtered", "nav_msgs/msg/Odometry"),
+    (f"/{robot_id}/scan", "sensor_msgs/msg/LaserScan"),
                 ]
                 for topic, msg_type in topics:
                     self.ws.send(json.dumps({
@@ -221,7 +220,7 @@ class FleetStateManager:
             if f"/{robot_id}/" in topic:
                 robot.last_seen = time.time()
 
-                if "amcl_pose" in topic:
+                if "odometry/filtered" in topic:
                     pose = msg.get("pose", {}).get("pose", {})
                     pos = pose.get("position", {})
                     orient = pose.get("orientation", {})
