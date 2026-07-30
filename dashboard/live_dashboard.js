@@ -371,7 +371,11 @@ const chatSend = document.getElementById('chat-send');
 function addChatMessage(text, type) {
   const div = document.createElement('div');
   div.className = `msg msg-${type}`;
-  div.innerHTML = text;
+  if (type === 'bot' && typeof marked !== 'undefined') {
+    div.innerHTML = marked.parse(text);
+  } else {
+    div.textContent = text;
+  }
   chatMessages.appendChild(div);
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }

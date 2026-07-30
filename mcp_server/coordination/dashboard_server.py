@@ -20,18 +20,6 @@ except ImportError:
     HAS_WEBSOCKETS = False
 
 
-def _strip_markdown(text: str) -> str:
-    """Remove common markdown formatting for dashboard display."""
-    import re
-    text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
-    text = re.sub(r'\*(.+?)\*', r'\1', text)
-    text = re.sub(r'`(.+?)`', r'\1', text)
-    text = re.sub(r'^#+\s+', '', text, flags=re.MULTILINE)
-    text = re.sub(r'^[-*]\s+', '  • ', text, flags=re.MULTILINE)
-    text = re.sub(r'\n{3,}', '\n\n', text)
-    return text.strip()
-
-
 class DashboardServer:
     """WebSocket server that streams fleet state to connected browsers."""
 
@@ -297,9 +285,8 @@ class DashboardServer:
                     if action == "__end__":
                         resp = data.get("response") or last_response
                         if resp:
-                            text = _strip_markdown(str(resp))
                             loop.run_until_complete(
-                                self._broadcast_chat_response(text, None)
+                                self._broadcast_chat_response(str(resp), None)
                             )
                         else:
                             loop.run_until_complete(
