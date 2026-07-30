@@ -161,8 +161,18 @@ def _make_agent_node(agent_name: str):
         result = react_agent.invoke({"messages": msgs})
         final = result.get("messages", [])
         last = final[-1] if final else None
-        response_text = last.content if last and hasattr(last, "content") else str(last) if last else ""
-        return {"messages": final, "response": response_text}
+        response_text = ""
+        if last:
+            if hasattr(last, "content") and last.content:
+                response_text = last.content
+            elif hasattr(last, "tool_calls") and last.tool_calls:
+                response_text = f"Called tool: {last.tool_calls[0]['name']}"
+            else:
+                response_text = str(last)
+        update = {"messages": final}
+        if response_text:
+            update["response"] = response_text
+        return update
 
     return node_fn
 

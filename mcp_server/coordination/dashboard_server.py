@@ -259,8 +259,19 @@ class DashboardServer:
             from graph.graph import graph
 
             last_response = None
+            stream_timeout = 30.0
+            import time
+            start = time.time()
 
             for step in graph.stream({"messages": [{"role": "user", "content": message}]}):
+                if time.time() - start > stream_timeout:
+                    loop.run_until_complete(
+                        self._broadcast_chat_response(
+                            "Request timed out after 30s. The agent may be waiting for a ROS connection.", None
+                        )
+                    )
+                    return
+
                 for node, data in step.items():
                     if node == "__start__":
                         continue
@@ -300,6 +311,7 @@ class DashboardServer:
                                     "- \"Check obstacles near tb2\"", None
                                 )
                             )
+                        return
 
         except Exception as e:
             loop.run_until_complete(
