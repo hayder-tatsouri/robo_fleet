@@ -21,7 +21,6 @@
 <frame_id>odom</frame_id>
 <child_frame_id>base_footprint</child_frame_id>
 
-<!-- THE CRITICAL MISSING FIX: Force Gazebo to stop hijacking the TF Tree -->
 <publish_odom_tf>false</publish_odom_tf>
 
 </plugin>

@@ -78,10 +78,10 @@ class FleetStateManager:
 
     Usage:
         manager = FleetStateManager.get_instance()
-        manager.start(robot_ids=["tb1", "tb2", "tb3"])
+        manager.start(robot_ids=["pearlguard1", "pearlguard2"])
         
         # Instant queries (no network round-trip):
-        pos = manager.get_position("tb1")
+        pos = manager.get_position("pearlguard1")
         fleet = manager.get_all_states()
         nearest = manager.get_nearest_available(x=2.0, y=3.0)
     """
@@ -111,7 +111,7 @@ class FleetStateManager:
         Initialize the manager with robot IDs and start background listener.
         
         Args:
-            robot_ids: List of robot namespaces. Default: ["tb1", "tb2", "tb3"]
+            robot_ids: List of robot namespaces. Default: ["pearlguard1", "pearlguard2"]
             groups: Dict of group_name -> [robot_ids]. Optional.
             ws_url: rosbridge WebSocket URL.
         """
@@ -119,7 +119,7 @@ class FleetStateManager:
             return
 
         if robot_ids is None:
-            robot_ids = ["tb1", "tb2", "tb3"]
+            robot_ids = ["pearlguard1", "pearlguard2"]
 
         self.ws_url = ws_url
 

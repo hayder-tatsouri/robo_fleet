@@ -12,7 +12,7 @@ def check_obstacles(
     """
     Check for obstacles near a robot using laser scan data.
     Args:
-        robot_id: Robot namespace (e.g. 'tb1').
+        robot_id: Robot namespace (e.g. 'pearlguard1').
         distance_threshold: Alert if obstacles closer than this (meters, default: 0.5).
         timeout: Max seconds to wait for scan data (default: 3).
     Returns:
@@ -38,12 +38,18 @@ def check_obstacles(
         ranges = msg.get("ranges", [])
         angle_min = msg.get("angle_min", 0.0)
         angle_increment = msg.get("angle_increment", 0.01)
-        range_min = msg.get("range_min", 0.1)
-        range_max = msg.get("range_max", 10.0)
+        range_min = msg.get("range_min", 0.1) or 0.1
+        range_max = msg.get("range_max", 10.0) or 10.0
 
         # Filter valid readings
         valid_readings = []
         for i, r in enumerate(ranges):
+            if r is None:
+                continue
+            try:
+                r = float(r)
+            except (TypeError, ValueError):
+                continue
             if range_min <= r <= range_max:
                 angle = angle_min + i * angle_increment
                 valid_readings.append({"distance": r, "angle": angle, "index": i})

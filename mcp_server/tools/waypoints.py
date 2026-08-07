@@ -9,16 +9,16 @@ def navigate_waypoints(
     robot_id: str,
     waypoints: list[dict],
     frame_id: str = "map",
-    timeout_per_waypoint: float = 30.0,
+    timeout_per_waypoint: float = 60.0,
 ) -> dict:
     """
     Navigate a robot through a sequence of waypoints.
     Args:
-        robot_id: Robot namespace (e.g. 'tb1').
+        robot_id: Robot namespace (e.g. 'pearlguard1').
         waypoints: List of dicts with keys: x, y, and optional theta (radians).
                    Example: [{"x": 1.0, "y": 2.0}, {"x": 3.0, "y": 4.0, "theta": 1.57}]
         frame_id: Coordinate frame (default: "map").
-        timeout_per_waypoint: Max seconds per waypoint (default: 30).
+        timeout_per_waypoint: Max seconds per waypoint (default: 60).
     Returns:
         Dict with per-waypoint results and overall success.
     """

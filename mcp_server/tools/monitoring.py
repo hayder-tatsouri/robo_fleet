@@ -1,6 +1,67 @@
 import math
+import json
 from server import mcp
 from ros.ros_client import RosClient
+
+
+@mcp.tool()
+def list_capabilities() -> dict:
+    """
+    List all available agents and their tools in the multi-agent fleet system.
+    Returns a complete overview of what the system can do.
+    """
+    return {
+        "system": "Robo_Fleet Multi-Agent System",
+        "agents": [
+            {
+                "name": "navigation_agent",
+                "description": "Moves robots to coordinates or waypoint sequences",
+                "tools": ["navigate_to_pose(robot_id, x, y, theta)", "navigate_waypoints(robot_id, waypoints)"],
+            },
+            {
+                "name": "monitoring_agent",
+                "description": "Reports robot positions, battery, and fleet status",
+                "tools": ["get_robot_position(robot_id)", "get_fleet_status(robot_ids)", "get_battery_level(robot_id)", "list_capabilities()"],
+            },
+            {
+                "name": "control_agent",
+                "description": "Stops robots immediately",
+                "tools": ["stop_robot(robot_id)", "emergency_stop(robot_ids)"],
+            },
+            {
+                "name": "collision_agent",
+                "description": "Detects obstacles and predicts robot collisions",
+                "tools": ["check_obstacles(robot_id)", "predict_collisions()"],
+            },
+            {
+                "name": "planning_agent",
+                "description": "Allocates tasks to robots optimally",
+                "tools": ["assign_tasks(tasks)", "dispatch_tasks(tasks)", "get_plan()", "replan()", "set_robot_priority()", "configure_fleet()", "assign_tasks_optimal(tasks)"],
+            },
+            {
+                "name": "queue_agent",
+                "description": "Manages the dispatch task queue",
+                "tools": ["add_task_to_queue()", "get_queue()", "clear_queue()", "start_auto_dispatch()", "stop_auto_dispatch()"],
+            },
+            {
+                "name": "dashboard_agent",
+                "description": "Starts/stops the live visualization",
+                "tools": ["start_dashboard(port)", "stop_dashboard()"],
+            },
+            {
+                "name": "natural_lang_agent",
+                "description": "Manages named locations and sends nearest robot",
+                "tools": ["list_locations()", "add_location()", "remove_location()", "go_to_location()", "send_nearest_to()"],
+            },
+            {
+                "name": "map_viz_agent",
+                "description": "Generates ASCII map of robot positions",
+                "tools": ["get_map_with_robots()"],
+            },
+        ],
+        "total_agents": 9,
+        "total_tools": 30,
+    }
 
 
 @mcp.tool()
@@ -11,7 +72,7 @@ def get_robot_position(
     """
     Get the current position of a specific robot.
     Args:
-        robot_id: Robot namespace (e.g. 'tb1', 'tb2', 'tb3').
+        robot_id: Robot namespace (e.g. 'pearlguard1').
         timeout: Max seconds to wait for pose data (default: 5).
     Returns:
         Dict with x, y, theta (radians), frame_id, or error message.
@@ -21,7 +82,7 @@ def get_robot_position(
 
     try:
         msg = client.subscribe_once(
-            topic=f"/{robot_id}/amcl_pose",
+            topic=f"/{robot_id}/odometry/filtered",
             msg_type="geometry_msgs/msg/PoseWithCovarianceStamped",
             timeout=timeout,
         )
@@ -62,13 +123,13 @@ def get_fleet_status(
     """
     Get status of all robots in the fleet (position + battery + status).
     Args:
-        robot_ids: List of robot namespaces. Defaults to ['tb1', 'tb2', 'tb3'].
+        robot_ids: List of robot namespaces. Defaults to ['pearlguard1', 'pearlguard2'].
         timeout: Max seconds to wait per robot (default: 3).
     Returns:
         Dict with fleet overview: list of robots with position, battery, status.
     """
     if robot_ids is None:
-        robot_ids = ["tb1", "tb2", "tb3"]
+        robot_ids = ["pearlguard1", "pearlguard2"]
 
     client = RosClient()
     client.connect()
@@ -80,7 +141,7 @@ def get_fleet_status(
 
             # Get position
             msg = client.subscribe_once(
-                topic=f"/{robot_id}/amcl_pose",
+                topic=f"/{robot_id}/odometry/filtered",
                 msg_type="geometry_msgs/msg/PoseWithCovarianceStamped",
                 timeout=timeout,
             )
@@ -138,7 +199,7 @@ def get_battery_level(
     """
     Get the battery level of a specific robot.
     Args:
-        robot_id: Robot namespace (e.g. 'tb1').
+        robot_id: Robot namespace (e.g. 'pearlguard1').
         timeout: Max seconds to wait for battery data (default: 3).
     Returns:
         Dict with battery percentage, voltage, charging status.

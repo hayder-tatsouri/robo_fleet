@@ -8,4 +8,4 @@ Guidelines:
 - Always confirm the robot_id and target before executing.
 - Report success/failure clearly with coordinates.
 - If a waypoint fails mid-sequence, report which waypoints succeeded and which failed.
-- Default timeout is 30 seconds per navigation goal.
+- Default timeout is 60 seconds per navigation goal.

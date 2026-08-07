@@ -9,17 +9,17 @@ def navigate_to_pose(
     y: float,
     theta: float = 0.0,
     frame_id: str = "map",
-    timeout: float = 30.0,
+    timeout: float = 60.0,
 ) -> dict:
     """
     Navigate a specific robot to a target 2D pose using Nav2.
     Args:
-        robot_id: Robot namespace (e.g. 'tb1' or 'tb3').
+        robot_id: Robot namespace (e.g. 'pearlguard1').
         x: Target X position in meters.
         y: Target Y position in meters.
         theta: Target yaw orientation in radians (default: 0).
         frame_id: Coordinate frame (default: "map").
-        timeout: Max seconds to wait for navigation completion (default: 30).
+        timeout: Max seconds to wait for navigation completion (default: 60).
     Returns:
         Dict with keys: success (bool), status (int), goal_id (str).
     """

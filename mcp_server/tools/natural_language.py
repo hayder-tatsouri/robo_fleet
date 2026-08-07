@@ -17,14 +17,11 @@ _LOCATIONS_FILE = os.path.join(os.path.dirname(__file__), "..", "locations.json"
 
 # Default locations
 _DEFAULT_LOCATIONS = {
-    "origin": {"x": 0.0, "y": 0.0, "description": "Map origin (0, 0)"},
-    "charging_station": {"x": 0.0, "y": 0.0, "description": "Charging dock at origin"},
-    "warehouse": {"x": 1.0, "y": 1.0, "description": "Warehouse area"},
-    "dock": {"x": -1.0, "y": 0.0, "description": "Loading dock"},
-    "entrance": {"x": 0.0, "y": 1.0, "description": "Main entrance"},
-    "storage": {"x": -1.0, "y": -1.0, "description": "Storage room"},
-    "workstation_a": {"x": 1.0, "y": -0.5, "description": "Workstation A"},
-    "workstation_b": {"x": -0.5, "y": 0.5, "description": "Workstation B"},
+    "charging_station": {"x": 22.0, "y": 0.0, "description": "Charging station"},
+    "proxym": {"x": 25.0, "y": -112.4, "description": "Proxym location"},
+    "enova_robotics": {"x": 22.0, "y": 9.0, "description": "Enova Robotics office"},
+    "sagemcom": {"x": 513.5, "y": -183.0, "description": "Sagemcom site"},
+    "novation": {"x": 24.0, "y": -53.0, "description": "Novation location"},
 }
 
 
@@ -131,7 +128,7 @@ def go_to_location(
     """
     Navigate a specific robot to a named location.
     Args:
-        robot_id: Robot namespace (e.g. 'tb1').
+        robot_id: Robot namespace (e.g. 'pearlguard1').
         location_name: Name of registered location (e.g. 'warehouse', 'charging_station').
         timeout: Navigation timeout in seconds.
     Returns:

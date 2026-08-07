@@ -90,7 +90,7 @@ def assign_tasks(
 def dispatch_tasks(
     tasks: list[dict],
     collision_buffer: float = 0.5,
-    timeout_per_task: float = 30.0,
+    timeout_per_task: float = 60.0,
 ) -> dict:
     """
     Assign AND dispatch navigation tasks - allocates optimally then navigates robots.
@@ -99,7 +99,7 @@ def dispatch_tasks(
     Args:
         tasks: List of task dicts with keys: x, y, and optional theta, priority, group.
         collision_buffer: Minimum distance between robot goals (default: 0.5).
-        timeout_per_task: Max seconds to wait per navigation goal (default: 30).
+        timeout_per_task: Max seconds to wait per navigation goal (default: 60).
     
     Returns:
         Dict with per-robot dispatch results.
@@ -246,7 +246,7 @@ def set_robot_priority(
     Higher priority robots get assigned urgent tasks first and win collision conflicts.
     
     Args:
-        robot_id: Robot namespace (e.g. 'tb1').
+        robot_id: Robot namespace (e.g. 'pearlguard1').
         priority: Integer priority (higher = more important). Default is 0.
     
     Returns:
@@ -282,9 +282,9 @@ def configure_fleet(
     Configure fleet composition and groups. Call once at startup or when fleet changes.
     
     Args:
-        robot_ids: List of all robot namespaces. Default: ['tb1', 'tb2', 'tb3'].
+        robot_ids: List of all robot namespaces. Default: ['pearlguard1', 'pearlguard2'].
         groups: Dict mapping group names to robot ID lists.
-                Example: {"warehouse": ["tb1", "tb2"], "outdoor": ["tb3"]}
+                Example: {"warehouse": ["pearlguard1", "pearlguard2"]}
         collision_buffer: Minimum distance between robot paths (meters).
     
     Returns:
@@ -293,7 +293,7 @@ def configure_fleet(
     manager = _get_manager()
 
     if robot_ids is None:
-        robot_ids = ["tb1", "tb2", "tb3"]
+        robot_ids = ["pearlguard1", "pearlguard2"]
 
     # Restart manager with new config
     manager.stop()

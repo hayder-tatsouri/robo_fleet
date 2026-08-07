@@ -47,6 +47,7 @@ class DashboardServer:
         self._goal_status = {} # robot_id -> "navigating" | "idle" | "failed"
         self._loop = None      # asyncio loop reference for cross-thread scheduling
         self._ros_thread = None
+        self._chat_history = []  # conversation memory across chat turns
 
     def start(self):
         """Start dashboard server in background thread."""
@@ -246,16 +247,21 @@ class DashboardServer:
         try:
             from graph.graph import graph
 
+            self._chat_history.append({"role": "user", "content": message})
+            MAX_HISTORY = 20
+            if len(self._chat_history) > MAX_HISTORY:
+                self._chat_history = self._chat_history[-MAX_HISTORY:]
+
             last_response = None
-            stream_timeout = 30.0
+            stream_timeout = 60.0
             import time
             start = time.time()
 
-            for step in graph.stream({"messages": [{"role": "user", "content": message}]}):
+            for step in graph.stream({"messages": list(self._chat_history)}):
                 if time.time() - start > stream_timeout:
                     loop.run_until_complete(
                         self._broadcast_chat_response(
-                            "Request timed out after 30s. The agent may be waiting for a ROS connection.", None
+                            "Request timed out after 60s. The agent may be waiting for a ROS connection.", None
                         )
                     )
                     return
@@ -285,6 +291,7 @@ class DashboardServer:
                     if action == "__end__":
                         resp = data.get("response") or last_response
                         if resp:
+                            self._chat_history.append({"role": "assistant", "content": str(resp)})
                             loop.run_until_complete(
                                 self._broadcast_chat_response(str(resp), None)
                             )
@@ -293,9 +300,9 @@ class DashboardServer:
                                 self._broadcast_chat_response(
                                     "I can help you control the robot fleet. Try:\n"
                                     "- \"Where is pguard?\"\n"
-                                    "- \"Send tb1 to coordinates 5, 3\"\n"
+                                    "- \"Send pearlguard1 to coordinates 5, 3\"\n"
                                     "- \"Fleet status\"\n"
-                                    "- \"Check obstacles near tb2\"", None
+                                    "- \"Check obstacles near pearlguard2\"", None
                                 )
                             )
                         return

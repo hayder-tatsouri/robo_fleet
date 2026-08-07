@@ -61,7 +61,7 @@ class RoboFleetAdapter(Node):
         # /sonar/front is already published as a LaserScan by gz-sim.
         # Just relay it under the /pguard/ namespace.
         self.create_subscription(
-            LaserScan, "/sonar/front", self._on_scan, 10, callback_group=self._cb,
+            LaserScan, "/outser/points", self._on_scan, 10, callback_group=self._cb,
         )
         self._pub_scan = self.create_publisher(LaserScan, "/pguard/scan", 10)
 
@@ -85,7 +85,7 @@ class RoboFleetAdapter(Node):
         self.get_logger().info("robo_fleet_adapter running:")
         self.get_logger().info("  /odometry/filtered -> /pguard/amcl_pose")
         self.get_logger().info("  /pguard/cmd_vel(Stamped) -> /cmd_vel(Twist)")
-        self.get_logger().info("  /sonar/* -> /pguard/scan (4-ray synth)")
+        self.get_logger().info("  /outser/points -> /pguard/scan (4-ray synth)")
         self.get_logger().info("  /pguard/battery_state @ 1Hz (100% synthetic)")
         self.get_logger().info("  /pguard/navigate_to_pose -> /navigate_to_pose (relay)")
 

@@ -175,7 +175,7 @@ class Robot:
 class FleetSimulator:
     def __init__(self, robot_names=None, ws_url="ws://localhost:9090"):
         if robot_names is None:
-            robot_names = ["tb1", "tb2", "tb3"]
+            robot_names = ["pearlguard1", "pearlguard2"]
         positions = [(0.0, 0.0), (1.5, 0.0), (0.0, 1.5)]
         self.robots = {}
         for i, name in enumerate(robot_names):
@@ -425,7 +425,7 @@ async def main():
     parser.add_argument("--port", type=int, default=9090, help="WebSocket port (default: 9090)")
     parser.add_argument("--with-mcp", action="store_true", help="Also start MCP server")
     parser.add_argument("--test", action="store_true", help="Run integration tests after startup")
-    parser.add_argument("--robots", nargs="+", default=["tb1", "tb2", "tb3"])
+    parser.add_argument("--robots", nargs="+", default=["pearlguard1", "pearlguard2"])
     args = parser.parse_args()
 
     print("""

@@ -39,12 +39,19 @@ nl_tools = [tool(list_locations), tool(add_location), tool(remove_location), too
 map_tools = [tool(get_map_with_robots)]
 
 
+_GLOBAL_INSTRUCTION = """
+IMPORTANT: Only act on the most recent user message. Previous commands that were already completed should be ignored. Do not re-execute requests from earlier in the conversation history."""
+
+
 def _load_skill_prompt(name: str, fallback: str) -> str:
     path = os.path.join(os.path.dirname(__file__), f"{name}.md")
+    prompt = ""
     if os.path.exists(path):
         with open(path) as f:
-            return f.read().strip()
-    return fallback
+            prompt = f.read().strip()
+    else:
+        prompt = fallback
+    return prompt + _GLOBAL_INSTRUCTION
 
 
 def _llm() -> ChatAnthropic:

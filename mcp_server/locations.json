@@ -1,42 +1,27 @@
 {
-  "origin": {
-    "x": 0.0,
-    "y": 0.0,
-    "description": "Map origin (0, 0)"
-  },
   "charging_station": {
-    "x": 0.0,
+    "x": 22.0,
     "y": 0.0,
-    "description": "Charging dock at origin"
+    "description": "Charging station"
   },
-  "warehouse": {
-    "x": 1.0,
-    "y": 1.0,
-    "description": "Warehouse area"
+  "proxym": {
+    "x": 25.0,
+    "y": -112.4,
+    "description": "Proxym location"
   },
-  "dock": {
-    "x": -1.0,
-    "y": 0.0,
-    "description": "Loading dock"
+  "enova_robotics": {
+    "x": 22.0,
+    "y": 9.0,
+    "description": "Enova Robotics office"
   },
-  "entrance": {
-    "x": 0.0,
-    "y": 1.0,
-    "description": "Main entrance"
+  "sagemcom": {
+    "x": 513.5,
+    "y": -183.0,
+    "description": "Sagemcom site"
   },
-  "storage": {
-    "x": -1.0,
-    "y": -1.0,
-    "description": "Storage room"
-  },
-  "workstation_a": {
-    "x": 1.0,
-    "y": -0.5,
-    "description": "Workstation A"
-  },
-  "workstation_b": {
-    "x": -0.5,
-    "y": 0.5,
-    "description": "Workstation B"
+  "novation": {
+    "x": 24.0,
+    "y": -53.0,
+    "description": "Novation location"
   }
 }

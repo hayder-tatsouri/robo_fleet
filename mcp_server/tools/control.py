@@ -10,7 +10,7 @@ def stop_robot(
     """
     Stop a specific robot immediately. Publishes zero velocity and cancels any active navigation goal.
     Args:
-        robot_id: Robot namespace (e.g. 'tb1').
+        robot_id: Robot namespace (e.g. 'pearlguard1').
     Returns:
         Dict with success status.
     """
@@ -54,12 +54,12 @@ def emergency_stop(
     """
     Emergency stop ALL robots in the fleet. Immediately halts all motion.
     Args:
-        robot_ids: List of robot namespaces. Defaults to ['tb1', 'tb2', 'tb3'].
+        robot_ids: List of robot namespaces. Defaults to ['pearlguard1', 'pearlguard2'].
     Returns:
         Dict with per-robot stop confirmation.
     """
     if robot_ids is None:
-        robot_ids = ["tb1", "tb2", "tb3"]
+        robot_ids = ["pearlguard1", "pearlguard2"]
 
     client = RosClient()
     client.connect()

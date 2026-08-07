@@ -12,7 +12,7 @@ from ros.ros_client import RosClient
 # ─────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────
-ROBOT = "tb1"
+ROBOT = "pearlguard1"
 TARGET_X = 0.75
 TARGET_Y = 0.0
 

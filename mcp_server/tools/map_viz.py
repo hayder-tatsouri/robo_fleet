@@ -7,23 +7,23 @@ from ros.ros_client import RosClient
 @mcp.tool()
 def get_map_with_robots(
     robot_ids: list[str] = None,
-    map_width: float = 10.0,
-    map_height: float = 10.0,
+    map_width: float = 600.0,
+    map_height: float = 600.0,
     timeout: float = 3.0,
 ) -> dict:
     """
-    Get a map visualization showing robot positions.
-    Returns robot positions on a coordinate grid for visualization.
+    Get a map visualization showing robot positions on a 600x600 meter grid.
+    Builds an approximate ASCII map downsampled to fit the terminal.
     Args:
-        robot_ids: List of robot namespaces. Defaults to ['tb1', 'tb2', 'tb3'].
-        map_width: Map width in meters (default: 10).
-        map_height: Map height in meters (default: 10).
+        robot_ids: List of robot namespaces. Defaults to ['pearlguard1', 'pearlguard2'].
+        map_width: Map width in meters (default: 600).
+        map_height: Map height in meters (default: 600).
         timeout: Max seconds to wait per robot (default: 3).
     Returns:
         Dict with map bounds and robot positions for rendering.
     """
     if robot_ids is None:
-        robot_ids = ["tb1", "tb2", "tb3"]
+        robot_ids = ["pearlguard1", "pearlguard2"]
 
     client = RosClient()
     client.connect()
@@ -65,9 +65,9 @@ def get_map_with_robots(
     finally:
         client.disconnect()
 
-    # Generate ASCII map
-    grid_w = 40
-    grid_h = 20
+    # Generate approximate ASCII map (downsampled)
+    grid_w = 60
+    grid_h = 40
     grid = [[" " for _ in range(grid_w)] for _ in range(grid_h)]
 
     # Draw border
@@ -85,10 +85,13 @@ def get_map_with_robots(
             gy = int((map_height / 2 - robot["y"]) / map_height * (grid_h - 2)) + 1
             gx = max(1, min(grid_w - 2, gx))
             gy = max(1, min(grid_h - 2, gy))
-            symbol = robot["robot_id"][-1]  # Use last char (1, 2, 3)
+            symbol = robot["robot_id"][-1]
             grid[gy][gx] = symbol
 
     ascii_map = "\n".join("".join(row) for row in grid)
+
+    step_x = map_width / grid_w
+    step_y = map_height / grid_h
 
     return {
         "success": True,
@@ -97,6 +100,7 @@ def get_map_with_robots(
             "x_max": map_width / 2,
             "y_min": -map_height / 2,
             "y_max": map_height / 2,
+            "meters_per_cell": round(max(step_x, step_y), 1),
         },
         "robots": robots,
         "ascii_map": ascii_map,
