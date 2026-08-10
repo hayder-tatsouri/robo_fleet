@@ -157,6 +157,7 @@ def generate_launch_description():
         gps_tf = Node(
             package='my_pguard_bot', executable='gps_tf_publisher',
             output='screen',
+            parameters=[{'use_sim_time': True}],
         )
         return GroupAction([PushRosNamespace(name), ekf_local, ekf_global, navsat, gps_tf])
 
