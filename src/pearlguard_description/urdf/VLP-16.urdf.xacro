@@ -6,10 +6,10 @@
     <joint name="${name}_base_mount_joint" type="fixed">
       <xacro:insert_block name="origin" /> 
       <parent link="${parent}"/>
-      <child link="${name}_base_link"/>
+      <child link="$(arg namespace)/${name}_base_link"/>
     </joint>
 
-    <link name="${name}_base_link">
+    <link name="$(arg namespace)/${name}_base_link">
       <inertial>
         <mass value="0.83"/>
         <origin xyz="0 0 0.03585"/>
@@ -37,11 +37,11 @@
 
     <joint name="${name}_base_scan_joint" type="fixed" >
       <origin xyz="0 0 0.0377" rpy="0 0 0" />
-      <parent link="${name}_base_link" />
-      <child link="${name}"/>
+      <parent link="$(arg namespace)/${name}_base_link" />
+      <child link="$(arg namespace)/${name}"/>
     </joint>
 
-    <link name="${name}">
+    <link name="$(arg namespace)/${name}">
       <inertial>
         <mass value="0.01"/>
         <origin xyz="0 0 0"/>
@@ -56,13 +56,13 @@
     </link>
 
     <!-- Gazebo requires the velodyne_gazebo_plugins package -->
-    <gazebo reference="${name}">
+    <gazebo reference="$(arg namespace)/${name}">
   <sensor name="${name}_lidar" type="gpu_lidar">
     <always_on>true</always_on>
     <visualize>false</visualize>
     <update_rate>${hz}</update_rate>
     <topic>$(arg namespace)/${topic}</topic>
-    <gz_frame_id>${name}</gz_frame_id>
+    <gz_frame_id>$(arg namespace)/${name}</gz_frame_id>
     <lidar>
       <scan>
         <horizontal>

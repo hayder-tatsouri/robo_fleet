@@ -1,0 +1,29 @@
+digraph G {
+"base_footprint" -> "base_footprint/navsat_sensor"[label=" Broadcaster: default_authority\nAverage rate: 4.0\nBuffer length: 4.5\nMost recent transform: 1786371056.73081\nOldest transform: 1786371052.230703\n"];
+"pearlguard1/odom" -> "pearlguard1/base_footprint"[label=" Broadcaster: default_authority\nAverage rate: 30.288\nBuffer length: 4.16\nMost recent transform: 33.561\nOldest transform: 29.401\n"];
+"map" -> "pearlguard1/odom"[label=" Broadcaster: default_authority\nAverage rate: 29.327\nBuffer length: 4.16\nMost recent transform: 33.601\nOldest transform: 29.441\n"];
+"map" -> "pearlguard2/odom"[label=" Broadcaster: default_authority\nAverage rate: 29.904\nBuffer length: 4.18\nMost recent transform: 33.606\nOldest transform: 29.426\n"];
+"pearlguard1/base_link" -> "pearlguard1/dome"[label=" Broadcaster: default_authority\nAverage rate: 20.35\nBuffer length: 4.177\nMost recent transform: 33.591\nOldest transform: 29.414\n"];
+"pearlguard1/base_footprint" -> "pearlguard1/base_link"[label=" Broadcaster: default_authority\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"pearlguard1/base_link" -> "pearlguard1/frontLeft_wheel"[label=" Broadcaster: default_authority\nAverage rate: 20.35\nBuffer length: 4.177\nMost recent transform: 33.591\nOldest transform: 29.414\n"];
+"pearlguard1/base_link" -> "pearlguard1/frontRight_wheel"[label=" Broadcaster: default_authority\nAverage rate: 20.35\nBuffer length: 4.177\nMost recent transform: 33.591\nOldest transform: 29.414\n"];
+"pearlguard1/base_link" -> "pearlguard1/rearLeft_wheel"[label=" Broadcaster: default_authority\nAverage rate: 20.35\nBuffer length: 4.177\nMost recent transform: 33.591\nOldest transform: 29.414\n"];
+"pearlguard1/base_link" -> "pearlguard1/rearRight_wheel"[label=" Broadcaster: default_authority\nAverage rate: 20.35\nBuffer length: 4.177\nMost recent transform: 33.591\nOldest transform: 29.414\n"];
+"pearlguard1/base_link" -> "pearlguard1/imu_link"[label=" Broadcaster: default_authority\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"pearlguard1/base_link" -> "pearlguard1/velodyne_base_link"[label=" Broadcaster: default_authority\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"pearlguard1/velodyne_base_link" -> "pearlguard1/velodyne"[label=" Broadcaster: default_authority\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"pearlguard2/odom" -> "pearlguard2/base_footprint"[label=" Broadcaster: default_authority\nAverage rate: 30.238\nBuffer length: 4.2\nMost recent transform: 33.586\nOldest transform: 29.386\n"];
+"pearlguard2/base_footprint" -> "pearlguard2/base_link"[label=" Broadcaster: default_authority\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"pearlguard2/base_link" -> "pearlguard2/imu_link"[label=" Broadcaster: default_authority\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"pearlguard2/base_link" -> "pearlguard2/velodyne_base_link"[label=" Broadcaster: default_authority\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"pearlguard2/velodyne_base_link" -> "pearlguard2/velodyne"[label=" Broadcaster: default_authority\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"pearlguard2/base_link" -> "pearlguard2/dome"[label=" Broadcaster: default_authority\nAverage rate: 20.838\nBuffer length: 4.175\nMost recent transform: 33.56\nOldest transform: 29.385\n"];
+"pearlguard2/base_link" -> "pearlguard2/frontLeft_wheel"[label=" Broadcaster: default_authority\nAverage rate: 20.838\nBuffer length: 4.175\nMost recent transform: 33.56\nOldest transform: 29.385\n"];
+"pearlguard2/base_link" -> "pearlguard2/frontRight_wheel"[label=" Broadcaster: default_authority\nAverage rate: 20.838\nBuffer length: 4.175\nMost recent transform: 33.56\nOldest transform: 29.385\n"];
+"pearlguard2/base_link" -> "pearlguard2/rearLeft_wheel"[label=" Broadcaster: default_authority\nAverage rate: 20.838\nBuffer length: 4.175\nMost recent transform: 33.56\nOldest transform: 29.385\n"];
+"pearlguard2/base_link" -> "pearlguard2/rearRight_wheel"[label=" Broadcaster: default_authority\nAverage rate: 20.838\nBuffer length: 4.175\nMost recent transform: 33.56\nOldest transform: 29.385\n"];
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1786371057.2638896"[ shape=plaintext ] ;
+}->"map";
+}
