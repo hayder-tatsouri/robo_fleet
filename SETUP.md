@@ -1,6 +1,20 @@
 # Robo_Fleet - Setup Guide
 
-Complete setup instructions for the Robo_Fleet MCP Server for Multi-Robot Fleet Control.
+Complete setup instructions for the Robo_Fleet multi-robot fleet control system: a
+ROS 2 / Gazebo simulation layer (PearlGuard outdoor platform) plus an MCP server that
+exposes fleet operations to AI agents.
+
+---
+
+## Overview
+
+Two layers:
+
+1. **Simulation** — a ROS 2 Jazzy + Gazebo Harmonic + Nav2 outdoor world running two
+   PearlGuard robots. Runs inside a Docker container (headless-safe) or natively on
+   Ubuntu 24.04.
+2. **MCP + dashboard** — an MCP server (`mcp_server/`) and a live web dashboard that the
+   agents drive through natural language.
 
 ---
 
@@ -8,338 +22,211 @@ Complete setup instructions for the Robo_Fleet MCP Server for Multi-Robot Fleet 
 
 | Requirement | Version | Notes |
 |-------------|---------|-------|
-| Python | 3.10+ | Tested on 3.13.2 (macOS) |
+| ROS 2 Jazzy + Gazebo Harmonic + Nav2 | Jazzy | Docker image or native Ubuntu 24.04 |
+| Python | 3.10+ | For the MCP layer / dashboard |
 | pip | Latest | `pip install --upgrade pip` |
-| Git | Any | For version control |
-| AWS Account (optional) | Bedrock access | For AI chat (Claude) |
-
-**No ROS2, Docker, or conda required** for development and testing.
+| Git | Any | Version control |
+| Anthropic API key (optional) | — | For the AI chat agent (or AWS Bedrock) |
 
 ---
 
-## Quick Start (2 minutes)
+## Option A — Docker (recommended for headless / CI)
+
+Build the extended image once (~15 min):
 
 ```bash
-# Clone or navigate to the project
-cd ~/Downloads/Robo_Fleet
-
-# Run setup
-chmod +x setup.sh
-./setup.sh
-
-# Activate environment
-source .venv/bin/activate
-
-# Start everything (mock rosbridge + 3 simulated robots)
-python run.py
+docker build -t outdoor-sim:jazzy .
 ```
 
-In a second terminal:
+Open a shell in the container:
+
 ```bash
-cd ~/Downloads/Robo_Fleet
-source .venv/bin/activate
-python sim/test_integration.py
+./scripts/ros2-shell.sh
+# or directly:
+docker run --rm -it --network host -v "$PWD":/workspace -w /workspace \
+    outdoor-sim:jazzy bash
 ```
 
-Expected output: **12/12 tests passed**
+See [`README_outdoor_sim.md`](README_outdoor_sim.md) for details and GUI limitations.
 
 ---
 
-## Detailed Setup
+## Option B — Native Ubuntu 24.04
 
-### 1. Create Virtual Environment
+One-time machine installer (idempotent, requires sudo):
 
 ```bash
-cd ~/Downloads/Robo_Fleet
+./scripts/setup_ubuntu_24_04.sh            # full setup (apt + ROS2 + Gazebo + Python)
+./scripts/setup_ubuntu_24_04.sh --no-build # skip the colcon build
+./scripts/setup_ubuntu_24_04.sh --check    # verify the install only
+```
+
+This installs ROS 2 Jazzy Desktop, Nav2, `robot_localization`, rosbridge, Foxglove,
+Gazebo Harmonic, and the Python deps for the MCP server + dashboard.
+
+---
+
+## Build the ROS 2 workspace (native only)
+
+```bash
+colcon build --symlink-install
+source install/setup.bash
+```
+
+(In Docker, the build step is handled inside the image / `--no-build` skips it.)
+
+---
+
+## Python environment (MCP layer + dashboard)
+
+The MCP/dashboard code runs from a plain venv — a system-wide ROS 2 install is **not**
+required for this layer.
+
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
-```
-
-### 2. Install Dependencies
-
-```bash
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Core dependencies installed:
-- `mcp[cli]` - Model Context Protocol server
-- `websocket-client` - ROS bridge communication
-- `websockets` - Mock rosbridge server
-- `pydantic` - Data validation
-- `numpy` - Math operations
-- `pytest` - Testing
-
-### 3. Install Optional Dependencies
+Optional extras for the AI chat agent:
 
 ```bash
-# For AI chat agent (Bedrock)
-pip install boto3
-
-# For AI chat agent (Anthropic direct)
-pip install anthropic
-
-# For optimal task allocation (Hungarian algorithm)
-pip install scipy
+pip install boto3       # AWS Bedrock provider
+pip install anthropic   # Anthropic API provider
+pip install scipy       # optimal (Hungarian) task allocation; greedy fallback works without it
 ```
 
 ---
 
-## Running Modes
+## Quick Start
 
-### Mode A: Local Simulator (no hardware needed)
-
-Starts a mock rosbridge + 3 simulated robots with physics.
+### 1. Launch the simulation + navigation
 
 ```bash
-python run.py
+ros2 launch my_pguard_bot full_stack.launch.py
 ```
 
-What starts:
-- Mock rosbridge WebSocket server on `ws://0.0.0.0:9090`
-- Fleet simulator (tb1, tb2, tb3) with pose, battery, and laser scan publishing
-- Physics loop at 20Hz
+Starts Gazebo with the Novation City world, spawns **pearlguard1** and **pearlguard2**,
+runs the dual-EKF localizers, and brings up Nav2 for each robot.
 
-Options:
-```bash
-python run.py --port 9090          # Custom port
-python run.py --robots tb1 tb2 tb3 tb4 tb5  # More robots
-python run.py --test               # Auto-run integration tests after startup
-```
-
-### Mode B: Real Rosbridge (remote robots)
-
-Connect to a real ROS2 + rosbridge setup on your network.
+### 2. Launch rosbridge + the topic adapter
 
 ```bash
-# Verify connectivity first
-python -c "
-import websocket
-ws = websocket.create_connection('ws://192.168.0.8:9090', timeout=5)
-print('Connected')
-ws.close()
-"
-
-# Discover what topics exist
-python sim/diagnose_remote.py --host 192.168.0.8
+ros2 launch my_pguard_bot robofleet.launch.py
 ```
 
-### Mode C: Live Dashboard with AI Chat
+Starts the **rosbridge WebSocket server on port 9090** plus the `robo_fleet_adapter`
+that bridges the robot topics to the fleet layer.
+
+### 3. Launch the dashboard + AI chat
 
 ```bash
-# Kill any old dashboard process
-lsof -ti :8080 | xargs kill -9 2>/dev/null
-
-# With AWS Bedrock (uses your AWS credentials)
-AWS_PROFILE=sandbox AWS_REGION=us-east-1 python start_dashboard.py \
-  --rosbridge 192.168.0.8 \
-  --robots tb1 tb3 \
-  --provider bedrock \
-  --model anthropic.claude-3-haiku-20240307-v1:0 \
-  --open
-
-# With Anthropic API directly
-ANTHROPIC_API_KEY="sk-ant-..." python start_dashboard.py \
-  --rosbridge 192.168.0.8 \
-  --robots tb1 tb3 \
-  --open
+python start_dashboard.py --rosbridge localhost --robots pearlguard1 pearlguard2 --open
 ```
 
-Then open `dashboard/live_dashboard.html` in your browser.
+Open `dashboard/live_dashboard.html` in your browser (auto-opened with `--open`). Click
+the map to send robots to a position, or use the chat panel to drive the fleet in
+natural language.
 
-### Mode D: Docker (full ROS2 stack)
+### 4. (Optional) Visualization
 
 ```bash
-docker compose up
+ros2 launch my_pguard_bot viz.launch.py   # Foxglove bridge, port 8765
+ros2 launch my_pguard_bot patrol.launch.py  # GPS perimeter patrol client
 ```
 
-Requires Docker Desktop running. Pulls `osrf/ros:humble-desktop-full` (~3GB first time).
+---
+
+## Other Launch Files
+
+| Launch file | What it starts |
+|-------------|----------------|
+| `full_stack.launch.py` | **Main entry**: sim + dual-EKF localization + Nav2 for both robots |
+| `sim.launch.py` | Gazebo (headless by default, `use_gui:=true` for GUI), state publisher, spawn, `ros_gz_bridge` |
+| `localization.launch.py` | Dual-EKF outdoor localizer (odom + IMU + RTK GPS) per robot |
+| `robofleet.launch.py` | Static `map → odom` transforms, topic adapter, rosbridge on port 9090 |
+| `patrol.launch.py` | GPS perimeter patrol client |
+| `viz.launch.py` | Foxglove bridge for browser visualization (port 8765) |
 
 ---
 
 ## MCP Server
 
-### Start the MCP Server (stdio)
+### Start the MCP server (stdio)
 
 ```bash
 cd mcp_server
 python index.py
 ```
 
-### Connect to an AI Client
+### Start the MCP server (streamable-HTTP)
 
-Add to your MCP client config (Claude Desktop, Cursor, etc.):
+```bash
+cd mcp_server
+python index.py --transport http --host 0.0.0.0 --port 8766
+```
+
+### Connect an AI client
+
+Add to your MCP client config (Claude Desktop, Cursor, LangGraph Studio, etc.):
 
 ```json
 {
   "mcpServers": {
     "robots_mcp": {
-      "command": "/Users/tastouri/Downloads/Robo_Fleet/.venv/bin/python",
-      "args": ["/Users/tastouri/Downloads/Robo_Fleet/mcp_server/index.py"]
+      "command": "/path/to/Robo_Fleet/.venv/bin/python",
+      "args": ["/path/to/Robo_Fleet/mcp_server/index.py"]
     }
   }
 }
 ```
 
-### Available MCP Tools (26 total)
+### LangGraph (multi-agent graph)
+
+The supervisor→agents graph is defined in `mcp_server/langgraph.json` and built in
+`mcp_server/graph/graph.py`. Run it in [LangGraph Studio](https://studio.langchain.com)
+or behind the dashboard. Requires `ANTHROPIC_API_KEY` (or Bedrock credentials) to
+instantiate the agents.
+
+### Available MCP tools (32 total)
 
 | Category | Tools |
 |----------|-------|
-| Navigation | `navigate_to_pose`, `navigate_waypoints` |
-| Monitoring | `get_robot_position`, `get_fleet_status`, `get_battery_level`, `check_obstacles`, `get_map_with_robots` |
+| Navigation | `navigate_to_pose` |
+| Waypoints | `navigate_waypoints` |
+| Monitoring | `list_capabilities`, `get_robot_position`, `get_fleet_status`, `get_battery_level` |
+| Obstacles | `check_obstacles` |
+| Map | `get_map_with_robots` |
 | Control | `stop_robot`, `emergency_stop` |
 | Coordination | `assign_tasks`, `dispatch_tasks`, `get_plan`, `replan`, `set_robot_priority`, `configure_fleet` |
-| Natural Language | `go_to_location`, `send_nearest_to`, `add_location`, `remove_location`, `list_locations` |
+| Natural language | `go_to_location`, `send_nearest_to`, `add_location`, `remove_location`, `list_locations` |
 | Advanced | `predict_collisions`, `add_task_to_queue`, `get_queue`, `clear_queue`, `start_auto_dispatch`, `stop_auto_dispatch`, `assign_tasks_optimal`, `start_dashboard`, `stop_dashboard` |
+| Chat | `robot_chat` |
 
 ---
 
 ## Testing
 
-### Unit Tests (no network required)
+### Unit tests (no simulation or network required)
 
 ```bash
-# All unit tests
 pytest tests/ -v
-
-# Specific test files
-pytest tests/test_ros_client.py -v       # 12 tests - core client
-pytest tests/test_new_tools.py -v        # 12 tests - monitoring/control
-pytest tests/test_next_steps.py -v       # 25 tests - advanced features
 ```
 
-### Integration Tests (requires `python run.py` in another terminal)
-
-```bash
-python sim/test_integration.py           # 12 tests against local simulator
-python sim/test_coordination.py          # 8 tests for fleet coordination
-```
-
-### Remote Tests (requires real rosbridge)
-
-```bash
-# Basic remote test
-python sim/test_remote.py --host 192.168.0.8 --robots tb1 tb3
-
-# Advanced features on real hardware
-python sim/test_new_features_remote.py --host 192.168.0.8 --robots tb1 tb3
-
-# Full scenarios (long nav, waypoints, simultaneous, dispatch, return home)
-python sim/test_full_scenario.py --host 192.168.0.8 --robots tb1 tb3 --nav-timeout 90
-
-# Coordination (fleet state, allocation, collision, dispatch, groups)
-python sim/test_coordination.py --host 192.168.0.8 --robots tb1 tb3
-```
-
-### Scale Benchmark
-
-```bash
-python sim/scale_test.py --robots 10    # Benchmark at 10 robots
-python sim/scale_test.py --robots 20    # Benchmark at 20 robots
-```
-
-### Diagnostic Tool
-
-```bash
-# Discover topics on a remote rosbridge
-python sim/diagnose_remote.py --host 192.168.0.8
-```
+| File | Coverage |
+|------|----------|
+| `tests/test_ros_client.py` | RosClient WebSocket: connect/publish/subscribe/actions |
+| `tests/test_new_tools.py` | Monitoring, control, waypoints, obstacles, map viz |
+| `tests/test_next_steps.py` | Collision predictor, task queue, dashboard, natural language, Hungarian allocation |
 
 ---
 
-## AWS Bedrock Setup (for AI Chat)
+## Dashboard
 
-### 1. Get AWS Credentials
-
-```bash
-ada credentials update --account 730335219206 --provider isengard --role Administrator --profile sandbox --once
-```
-
-### 2. Verify Model Access
-
-```bash
-aws bedrock list-foundation-models --profile sandbox --region us-east-1 \
-  --query "modelSummaries[?contains(modelId, 'claude')].[modelId]" --output table
-```
-
-### 3. Environment Variables
-
-```bash
-export AWS_PROFILE=sandbox
-export AWS_REGION=us-east-1
-```
-
-### Available Models
-
-| Model | Speed | Cost | Best For |
-|-------|-------|------|----------|
-| `anthropic.claude-3-haiku-20240307-v1:0` | Fast | Low | Quick robot commands |
-| `anthropic.claude-sonnet-4-20250514-v1:0` | Medium | Medium | Complex coordination |
-
----
-
-## Project Structure
-
-```
-Robo_Fleet/
-├── run.py                          # One-command launcher
-├── start_dashboard.py              # Dashboard + AI chat launcher
-├── setup.sh                        # Environment setup
-├── requirements.txt                # Python dependencies
-├── PROJECT_STATUS.md               # Current status + roadmap
-├── README.md                       # Project overview
-├── features.html                   # Visual feature tracker
-├── docker-compose.yml              # Docker setup
-├── Dockerfile.mcp                  # MCP server container
-├── pytest.ini                      # Test config
-├── .gitignore
-│
-├── mcp_server/                     # MCP Server (core)
-│   ├── server.py                   # FastMCP initialization
-│   ├── index.py                    # Tool registration (26 tools)
-│   ├── locations.json              # Named locations registry
-│   ├── ros/
-│   │   ├── __init__.py
-│   │   └── ros_client.py          # WebSocket client (auto-reconnect)
-│   ├── tools/
-│   │   ├── navigation.py          # navigate_to_pose
-│   │   ├── waypoints.py           # navigate_waypoints
-│   │   ├── monitoring.py          # position, fleet, battery
-│   │   ├── control.py             # stop, emergency_stop
-│   │   ├── obstacles.py           # check_obstacles (laser scan)
-│   │   ├── map_viz.py             # get_map_with_robots
-│   │   ├── coordination.py        # assign/dispatch/plan/replan
-│   │   ├── natural_language.py    # Named locations + go_to
-│   │   └── advanced.py            # Collision, queue, dashboard, optimal
-│   └── coordination/
-│       ├── fleet_state.py          # FleetStateManager (singleton)
-│       ├── task_planner.py         # Greedy linear allocation
-│       ├── collision_predictor.py  # Path collision prediction
-│       ├── task_queue.py           # Auto-dispatch priority queue
-│       ├── hungarian.py            # Optimal assignment (scipy)
-│       ├── dashboard_server.py     # WebSocket server for browser
-│       └── chat_agent.py           # LLM chat (Bedrock/Anthropic)
-│
-├── dashboard/
-│   └── live_dashboard.html         # Browser UI (map + chat)
-│
-├── sim/                            # Simulation + Tests
-│   ├── test_integration.py         # 12 local tests
-│   ├── test_remote.py              # 10 real hardware tests
-│   ├── test_coordination.py        # 8 coordination tests
-│   ├── test_full_scenario.py       # 5 scenario tests
-│   ├── test_new_features_remote.py # Advanced feature tests
-│   ├── scale_test.py              # Benchmark tool
-│   ├── diagnose_remote.py         # rosbridge diagnostic
-│   └── robot_simulator.py         # Standalone simulator
-│
-└── tests/                          # Unit Tests (pytest)
-    ├── conftest.py
-    ├── __init__.py
-    ├── test_ros_client.py          # 12 tests
-    ├── test_new_tools.py           # 12 tests
-    └── test_next_steps.py          # 25 tests
-```
+Served by `start_dashboard.py` on `ws://localhost:8080`; open
+`dashboard/live_dashboard.html`. It streams live fleet state and provides the chat
+panel that talks to the MCP agents.
 
 ---
 
@@ -347,16 +234,14 @@ Robo_Fleet/
 
 | Issue | Solution |
 |-------|----------|
-| `Address already in use (9090)` | `lsof -ti :9090 \| xargs kill -9` |
-| `Address already in use (8080)` | `lsof -ti :8080 \| xargs kill -9` |
-| `Connection timed out` to remote | Check if rosbridge is running on remote machine |
-| `No pose received (timeout)` | Robots may not be publishing - check `python sim/diagnose_remote.py` |
-| `Nav2 status=6 (ABORTED)` | Goal is outside map bounds - keep within -1.3 to 1.3 |
+| `Address already in use (9090)` | Kill the previous rosbridge: `lsof -ti :9090 \| xargs kill -9` |
+| `Address already in use (8080)` | Kill the previous dashboard: `lsof -ti :8080 \| xargs kill -9` |
+| Gazebo GUI not starting | Use headless mode (`-s`) or run natively with a GPU |
 | `ModuleNotFoundError: boto3` | `pip install boto3` |
 | `ModuleNotFoundError: anthropic` | `pip install anthropic` |
-| `scipy not found` | `pip install scipy` (optional - greedy fallback works) |
-| `pip install websockets` | Required for `run.py` and dashboard |
-| Dashboard shows "Disconnected" | Start dashboard server first, then open HTML |
+| `scipy not found` | `pip install scipy` (optional — greedy fallback works) |
+| Chat agent disabled at startup | Set `ANTHROPIC_API_KEY` or use `--provider bedrock` |
+| Dashboard shows "Disconnected" | Start `start_dashboard.py` first, then open the HTML |
 
 ---
 
@@ -364,16 +249,37 @@ Robo_Fleet/
 
 | Service | Default Port | Configurable |
 |---------|-------------|--------------|
-| rosbridge (ROS2 bridge) | 9090 | `--port` |
+| rosbridge (ROS2) | 9090 | `--port` |
 | Dashboard WebSocket | 8080 | `--dashboard-port` |
-| MCP Server | stdio | N/A |
+| MCP server (HTTP) | 8766 | `--port` (with `--transport http`) |
+| Foxglove bridge | 8765 | `viz.launch.py` |
 
-For remote rosbridge, ensure port 9090 is accessible from your machine:
-```bash
-# Test connectivity
-nc -zv 192.168.0.8 9090
+---
+
+## Project Structure
+
+```
+robo_fleet/
+├── mcp_server/                 # MCP server: agents, tools, coordination, graph
+│   ├── server.py / index.py    # FastMCP instance + entry point
+│   ├── agents/                 # ReAct agents + system prompts
+│   ├── graph/                  # supervisor -> agents graph
+│   ├── tools/                  # @mcp.tool() implementations
+│   ├── ros/                    # rosbridge WebSocket client
+│   └── coordination/           # fleet state, planner, queue, collision, dashboard
+├── src/
+│   ├── my_pguard_bot/          # world, maps, configs, launch files, scripts
+│   └── pearlguard_description/ # real PearlGuard model (meshes, URDF)
+├── dashboard/                  # live web dashboard
+├── tests/                      # pytest unit tests (mock-based)
+├── start_dashboard.py          # dashboard + chat agent launcher
+├── scripts/setup_ubuntu_24_04.sh  # native Ubuntu 24.04 installer
+├── setup.sh                    # venv + Python deps for MCP/dashboard layer
+├── requirements.txt
+├── pytest.ini
+└── README.md
 ```
 
 ---
 
-*Generated 2026-07-03*
+*Updated 2026-08-19*

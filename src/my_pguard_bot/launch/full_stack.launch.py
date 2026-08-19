@@ -73,10 +73,19 @@ def generate_launch_description():
         cmd=['gz', 'sim', '-s', '-r', '-v', '3', world_file],
         output='screen',
     )
-    gz_gui = ExecuteProcess(
-        cmd=['gz', 'sim', '-g'],
-        output='screen',
-        condition=IfCondition(LaunchConfiguration('use_gui')),
+    # Start the GUI a few seconds after the server so the world + models are
+    # fully loaded before rendering (avoids missing/flickering 3D models).
+    gz_gui = RegisterEventHandler(
+        OnProcessStart(
+            target_action=gz_server,
+            on_start=[TimerAction(period=3.0, actions=[
+                ExecuteProcess(
+                    cmd=['gz', 'sim', '-g'],
+                    output='screen',
+                    condition=IfCondition(LaunchConfiguration('use_gui')),
+                ),
+            ])],
+        )
     )
 
     # ─── Shared static map (one map, one map_server, no namespace) ───
