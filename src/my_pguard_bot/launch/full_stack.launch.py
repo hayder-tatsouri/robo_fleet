@@ -34,8 +34,8 @@ from pathlib import Path
 from os import name, pathsep
 
 ROBOTS = [
-    {"name": "pearlguard1", "x": 22.0,  "y": 0.0},
-    {"name": "pearlguard2", "x": 20.0, "y": 0.0},
+    {"name": "pearlguard1", "x": 21.0,  "y": 3.0},
+    {"name": "pearlguard2", "x": 21.0, "y": 0.0},
 ]
 
 NAV2_LIFECYCLE_NODES = [

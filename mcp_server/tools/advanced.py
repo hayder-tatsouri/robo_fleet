@@ -16,10 +16,7 @@ _task_queue = None
 
 
 def _get_manager():
-    manager = FleetStateManager.get_instance()
-    if not manager._running:
-        manager.start()
-    return manager
+    return FleetStateManager.get_manager()
 
 
 def _get_predictor():

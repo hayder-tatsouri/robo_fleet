@@ -97,6 +97,20 @@ class FleetStateManager:
                     cls._instance = cls()
         return cls._instance
 
+    @classmethod
+    def get_manager(cls, robot_ids=None, groups=None, ws_url="ws://localhost:9090"):
+        """Get (or create) the singleton AND ensure the persistent rosbridge connection is running.
+
+        This is the single "connection step" every tool path should go through so that
+        the FleetStateManager actually subscribes to the fleet topics. Calling get_instance()
+        alone only allocates the object — robot states stay empty and every robot reads as
+        "offline" until start() runs.
+        """
+        manager = cls.get_instance()
+        if not manager._running:
+            manager.start(robot_ids=robot_ids, groups=groups, ws_url=ws_url)
+        return manager
+
     def __init__(self):
         self.robots = {}  # robot_id -> RobotState
         self.groups = {}  # group_name -> [robot_ids]
@@ -162,7 +176,7 @@ class FleetStateManager:
     def _connect_and_subscribe(self):
         """Connect to rosbridge and subscribe to all robot topics."""
         try:
-            self.ws = websocket.create_connection(self.ws_url, timeout=5)
+            self.ws = websocket.create_connection(self.ws_url, timeout=15)
 
             # Subscribe to all topics for all robots
             for robot_id in self.robots:
@@ -175,6 +189,8 @@ class FleetStateManager:
                         "op": "subscribe",
                         "topic": topic,
                         "type": msg_type,
+                        "throttle_rate": 2,
+                        "queue_length": 1,
                     }))
 
         except Exception as e:
@@ -187,7 +203,7 @@ class FleetStateManager:
                 time.sleep(1)
                 continue
             try:
-                self.ws.settimeout(1.0)
+                self.ws.settimeout(2.0)
                 raw = self.ws.recv()
                 data = json.loads(raw)
                 self._process_message(data)

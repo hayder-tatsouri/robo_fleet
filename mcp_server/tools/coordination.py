@@ -20,20 +20,16 @@ def _get_planner():
     """Get or create the global TaskPlanner instance."""
     global _planner, _manager
     if _planner is None:
-        _manager = FleetStateManager.get_instance()
-        if not _manager._running:
-            _manager.start()
+        _manager = FleetStateManager.get_manager()
         _planner = TaskPlanner(_manager)
     return _planner
 
 
 def _get_manager():
-    """Get or create the global FleetStateManager instance."""
+    """Get or create the global FleetStateManager instance (ensuring the rosbridge connection is running)."""
     global _manager
     if _manager is None:
-        _manager = FleetStateManager.get_instance()
-        if not _manager._running:
-            _manager.start()
+        _manager = FleetStateManager.get_manager()
     return _manager
 
 

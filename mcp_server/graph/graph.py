@@ -341,6 +341,12 @@ def router_condition(state: AgentState) -> str:
 def build_graph() -> StateGraph:
     builder = StateGraph(AgentState)
 
+    # Establish the persistent FleetStateManager <-> rosbridge connection up front.
+    # The dashboard does this explicitly at startup; LangGraph Studio only imports this
+    # module, so without this step tools backed by the fleet cache would see robots offline.
+    from coordination.fleet_state import FleetStateManager
+    FleetStateManager.get_manager()
+
     builder.add_node("supervisor", supervisor_node)
     for name in ALL_AGENT_NAMES:
         builder.add_node(name, _make_agent_node(name))

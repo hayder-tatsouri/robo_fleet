@@ -212,8 +212,10 @@ def send_nearest_to(
     loc = locations[location_name]
     x, y = loc["x"], loc["y"]
 
-    # Get fleet state
+    # Get fleet state (ensure the persistent rosbridge connection is up)
     manager = FleetStateManager.get_instance()
+    if not manager._running:
+        manager.start()
     nearest = manager.get_nearest_available(x, y, group=group)
 
     if nearest is None:

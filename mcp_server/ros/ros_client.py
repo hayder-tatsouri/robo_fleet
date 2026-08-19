@@ -30,7 +30,7 @@ class RosClient:
         retries = 0
         while retries < self.max_retries:
             try:
-                self.ws = websocket.create_connection(self.url, timeout=5)
+                self.ws = websocket.create_connection(self.url, timeout=15)
                 self._connected = True
                 # NOTE: Do NOT print to stdout - when this module is loaded by
                 # the FastMCP server running over stdio, stray stdout writes

@@ -1,0 +1,7 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "robot_fleet": "./graph/graph.py:graph"
+  },
+  "env": ".env"
+}
