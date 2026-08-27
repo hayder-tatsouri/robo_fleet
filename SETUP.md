@@ -185,9 +185,30 @@ Add to your MCP client config (Claude Desktop, Cursor, LangGraph Studio, etc.):
 ### LangGraph (multi-agent graph)
 
 The supervisor→agents graph is defined in `mcp_server/langgraph.json` and built in
-`mcp_server/graph/graph.py`. Run it in [LangGraph Studio](https://studio.langchain.com)
-or behind the dashboard. Requires `ANTHROPIC_API_KEY` (or Bedrock credentials) to
+`mcp_server/graph/graph.py`. Requires `ANTHROPIC_API_KEY` (or a `mcp_server/.env`) to
 instantiate the agents.
+
+**View the agent workflow live in LangGraph Studio.** Start the dev server (from
+`mcp_server/`, with `ANTHROPIC_API_KEY` exported or a `mcp_server/.env` present):
+
+```bash
+source ../.venv/bin/activate
+export $(grep ANTHROPIC_API_KEY ../.env)
+langgraph dev --no-browser --port 8123
+# Studio: open http://localhost:8123 in your browser while the dashboard is running
+```
+
+The dashboard chatbot now runs its chat through this server (so executions appear in
+Studio). Env knobs read by `mcp_server/coordination/dashboard_server.py`:
+
+| Env var | Default | Purpose |
+|---------|---------|---------|
+| `LANGGRAPH_URL` | `http://127.0.0.1:8123` | LangGraph dev server address |
+| `LANGGRAPH_ASSISTANT` | `robot_fleet` | Graph to stream from |
+| `LANGGRAPH_DISABLE` | unset | Set to `1` to force the in-process graph |
+
+If the server isn't reachable, the dashboard silently falls back to the in-process
+graph, so the chatbot keeps working either way.
 
 ### Available MCP tools (32 total)
 

@@ -48,6 +48,7 @@ class DashboardServer:
         self._loop = None      # asyncio loop reference for cross-thread scheduling
         self._ros_thread = None
         self._chat_history = []  # conversation memory across chat turns
+        self._langgraph_thread_id = str(uuid.uuid4())  # stable thread for Studio runs
 
     def start(self):
         """Start dashboard server in background thread."""
@@ -241,20 +242,135 @@ class DashboardServer:
             self.fleet.set_robot_status(robot_id, "idle")
 
     def _handle_chat(self, message):
-        """Handle chat message in background thread using LangGraph."""
+        """Handle chat message in background thread.
+
+        Runs the chat on the LangGraph Studio server (if reachable) so the agent
+        workflow is visible live in Studio, falling back to the in-process graph
+        when the server isn't running.
+        """
+        self._chat_history.append({"role": "user", "content": message})
+        MAX_HISTORY = 20
+        if len(self._chat_history) > MAX_HISTORY:
+            self._chat_history = self._chat_history[-MAX_HISTORY:]
+
+        server_url = os.environ.get("LANGGRAPH_URL", "http://127.0.0.1:8123")
+        assistant_id = os.environ.get("LANGGRAPH_ASSISTANT", "robot_fleet") or "robot_fleet"
+        thread_id = self._langgraph_thread_id
+
+        # Try the LangGraph Studio server first so the workflow shows in Studio.
+        if not os.environ.get("LANGGRAPH_DISABLE"):
+            try:
+                ran = self._run_chat_via_server(
+                    server_url, assistant_id, thread_id, message
+                )
+                if ran:
+                    return
+            except Exception as e:
+                import sys
+                print(f"  LangGraph server unavailable ({e}); falling back to in-process graph",
+                      file=sys.stderr)
+
+        self._run_chat_in_process(message)
+
+    def _run_chat_via_server(self, server_url, assistant_id, thread_id, message):
+        """Stream the chat through the LangGraph dev server (visible in Studio).
+
+        Returns True on success, False if the server couldn't be reached.
+        """
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            from langgraph_sdk import get_client
+
+            client = get_client(url=server_url)
+            input_messages = list(self._chat_history)
+
+            last_response = None
+            end_seen = False
+            error_msg = None
+
+            async def _stream():
+                nonlocal last_response, end_seen, error_msg
+                # Ensure the thread exists before streaming into it.
+                created = False
+                try:
+                    await client.threads.create(thread_id=thread_id)
+                    created = True
+                except Exception:
+                    created = False
+                if not created:
+                    try:
+                        await client.threads.get(thread_id)
+                    except Exception:
+                        return
+                async for part in client.runs.stream(
+                    thread_id, assistant_id,
+                    input={"messages": input_messages},
+                    stream_mode="updates",
+                ):
+                    if part.event == "updates":
+                        for node, data in (part.data or {}).items():
+                            if node == "__start__" or not isinstance(data, dict):
+                                continue
+                            action = data.get("next", "executed")
+                            if node == "supervisor" and action != "__end__":
+                                await self._broadcast_chat_step(action, "running")
+                            if action == "executed" and node != "supervisor":
+                                await self._broadcast_chat_step(node, "done")
+                                resp = data.get("response")
+                                if resp:
+                                    last_response = resp
+                            if action == "__end__":
+                                end_seen = True
+                    elif part.event == "messages":
+                        continue
+                    elif part.event == "error":
+                        error_msg = (part.data or {}).get("error") or "An error occurred"
+                    elif part.event == "end":
+                        end_seen = True
+
+            loop.run_until_complete(_stream())
+
+            if end_seen:
+                final = str(last_response) if last_response else None
+                if final:
+                    self._chat_history.append({"role": "assistant", "content": final})
+                    loop.run_until_complete(self._broadcast_chat_response(final, None))
+                else:
+                    loop.run_until_complete(
+                        self._broadcast_chat_response(
+                            "I can help you control the robot fleet. Try:\n"
+                            "- \"Where is pguard?\"\n"
+                            "- \"Send pearlguard1 to coordinates 5, 3\"\n"
+                            "- \"Fleet status\"\n"
+                            "- \"Check obstacles near pearlguard2\"", None
+                        )
+                    )
+                return True
+
+            if error_msg:
+                loop.run_until_complete(
+                    self._broadcast_chat_response(
+                        f"The agent hit an error: {error_msg}. "
+                        "Make sure rosbridge (port 9090) is running.", None
+                    )
+                )
+                return True
+            return False
+        except Exception:
+            return False
+        finally:
+            loop.close()
+
+    def _run_chat_in_process(self, message):
+        """Fallback: run the chat on the in-process LangGraph graph."""
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
             from graph.graph import graph
 
-            self._chat_history.append({"role": "user", "content": message})
-            MAX_HISTORY = 20
-            if len(self._chat_history) > MAX_HISTORY:
-                self._chat_history = self._chat_history[-MAX_HISTORY:]
-
             last_response = None
             stream_timeout = 60.0
-            import time
             start = time.time()
 
             for step in graph.stream({"messages": list(self._chat_history)}):
@@ -269,32 +385,21 @@ class DashboardServer:
                 for node, data in step.items():
                     if node == "__start__":
                         continue
-
                     if not isinstance(data, dict):
                         continue
-
                     action = data.get("next", "executed")
-
                     if node == "supervisor" and action != "__end__":
-                        loop.run_until_complete(
-                            self._broadcast_chat_step(action, "running")
-                        )
-
+                        loop.run_until_complete(self._broadcast_chat_step(action, "running"))
                     if action == "executed" and node != "supervisor":
-                        loop.run_until_complete(
-                            self._broadcast_chat_step(node, "done")
-                        )
+                        loop.run_until_complete(self._broadcast_chat_step(node, "done"))
                         resp = data.get("response")
                         if resp:
                             last_response = resp
-
                     if action == "__end__":
                         resp = data.get("response") or last_response
                         if resp:
                             self._chat_history.append({"role": "assistant", "content": str(resp)})
-                            loop.run_until_complete(
-                                self._broadcast_chat_response(str(resp), None)
-                            )
+                            loop.run_until_complete(self._broadcast_chat_response(str(resp), None))
                         else:
                             loop.run_until_complete(
                                 self._broadcast_chat_response(
@@ -306,11 +411,8 @@ class DashboardServer:
                                 )
                             )
                         return
-
         except Exception as e:
-            loop.run_until_complete(
-                self._broadcast_chat_response(f"Error: {e}", None)
-            )
+            loop.run_until_complete(self._broadcast_chat_response(f"Error: {e}", None))
         finally:
             loop.close()
 
