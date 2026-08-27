@@ -70,12 +70,6 @@
     </camera>
 
     <topic>$(arg namespace)/camera/image</topic>
-
-    <plugin
-      filename="libgz-sim-camera-system.so"
-      name="gz::sim::systems::Camera">
-    </plugin>
   </sensor>
 </gazebo>
-
 </robot>
