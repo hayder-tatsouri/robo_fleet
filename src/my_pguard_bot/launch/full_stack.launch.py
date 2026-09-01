@@ -31,11 +31,14 @@ from nav2_common.launch import RewrittenYaml
 from launch.actions import SetEnvironmentVariable
 from ament_index_python.packages import get_package_share_directory
 from pathlib import Path
+import tempfile
 from os import name, pathsep
 
 ROBOTS = [
     {"name": "pearlguard1", "x": 21.0,  "y": 3.0},
     {"name": "pearlguard2", "x": 21.0, "y": 0.0},
+    {"name": "pearlguard3", "x": 21.0, "y": -3.0},
+
 ]
 
 NAV2_LIFECYCLE_NODES = [
@@ -43,6 +46,16 @@ NAV2_LIFECYCLE_NODES = [
     'behavior_server', 'bt_navigator', 'waypoint_follower',
     'velocity_smoother',
 ]
+
+
+def render_template_config(template_name: str, namespace: str, template_robot: str = 'pearlguard1') -> str:
+    template_path = Path(get_package_share_directory('my_pguard_bot')) / 'config' / template_name
+    rendered = template_path.read_text().replace(template_robot, namespace)
+    temp_file = tempfile.NamedTemporaryFile(mode='w', suffix=f'_{namespace}.yaml', delete=False)
+    temp_file.write(rendered)
+    temp_file.flush()
+    temp_file.close()
+    return temp_file.name
 
 
 def generate_launch_description():
@@ -67,6 +80,11 @@ def generate_launch_description():
     rviz_cfg = PathJoinSubstitution([pkg_pguard, 'rviz', 'pguard_nav2.rviz']) 
     gui_arg = DeclareLaunchArgument('use_gui', default_value='false')
     rviz_arg = DeclareLaunchArgument('rviz', default_value='false')
+    clock_bridge = Node(
+        package='ros_gz_bridge', executable='parameter_bridge', output='screen',
+        parameters=[{'config_file': PathJoinSubstitution([pkg_pguard, 'config', 'bridge_clock.yaml']),
+                     'use_sim_time': True}],
+    )
 
     # ─── Gazebo server / GUI (shared, one world for both robots) ───
     gz_server = ExecuteProcess(
@@ -126,7 +144,7 @@ def generate_launch_description():
             OnProcessStart(target_action=gz_server,
                             on_start=[TimerAction(period=3.0, actions=[spawn])])
         )
-        bridge_yaml = PathJoinSubstitution([pkg_pguard, 'config', f'bridge_{name}.yaml'])
+        bridge_yaml = render_template_config('bridge_pearlguard1.yaml', name)
         bridge = Node(
             package='ros_gz_bridge', executable='parameter_bridge', output='screen',
             parameters=[{'config_file': bridge_yaml, 'use_sim_time': True}],
@@ -134,13 +152,9 @@ def generate_launch_description():
         return GroupAction([PushRosNamespace(name), rsp, delayed_spawn, bridge])
 
     def make_localization_group(name: str):
-        """Dual-EKF + navsat_transform for one robot, using this robot's own
-        fully pre-written ekf_<name>.yaml (frames/topics already namespaced
-        in the file itself, since RewrittenYaml can't scope sibling keys
-        like ekf_local/ekf_global that share parameter names)."""
-        ekf_config = PathJoinSubstitution(
-            [FindPackageShare('my_pguard_bot'), 'config', f'ekf_{name}.yaml']
-        )
+        """Dual-EKF + navsat_transform for one robot using a shared
+        PearlGuard template rendered for the robot namespace."""
+        ekf_config = render_template_config('ekf_pearlguard1.yaml', name)
 
         ekf_local = Node(
             package='robot_localization', executable='ekf_node', name='ekf_local',
@@ -174,9 +188,7 @@ def generate_launch_description():
         """Full Nav2 stack inside a component container (composition mode).
         This is REQUIRED in Jazzy because standalone --params-file does not
         load undeclared plugin parameters (e.g. FollowPath.plugin, critics)."""
-        params_path = PathJoinSubstitution(
-            [FindPackageShare('my_pguard_bot'), 'config', f'nav2_params_{name}.yaml']
-        )
+        params_path = render_template_config('nav2_params_pearlguard1.yaml', name)
         configured_params = ParameterFile(
             RewrittenYaml(
                 source_file=params_path,
@@ -279,6 +291,7 @@ def generate_launch_description():
         gz_resource_path,
         gz_server,
         gz_gui,
+        clock_bridge,
         map_server,
         map_lifecycle_mgr,
     ]

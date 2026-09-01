@@ -24,8 +24,19 @@ from launch_ros.actions import Node, PushRosNamespace
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 from launch.actions import SetEnvironmentVariable, AppendEnvironmentVariable
+from ament_index_python.packages import get_package_share_directory
 from pathlib import Path
+import tempfile
 from os import pathsep
+
+
+def render_template_config(template_path: Path, namespace: str, template_robot: str = 'pearlguard1') -> str:
+    rendered = template_path.read_text().replace(template_robot, namespace)
+    temp_file = tempfile.NamedTemporaryFile(mode='w', suffix=f'_{namespace}.yaml', delete=False)
+    temp_file.write(rendered)
+    temp_file.flush()
+    temp_file.close()
+    return temp_file.name
 
 
 def generate_launch_description():
@@ -59,10 +70,18 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('use_gui')),
     )
 
+    clock_bridge = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        output='screen',
+        parameters=[{'config_file': PathJoinSubstitution([pkg_pguard, 'config', 'bridge_clock.yaml']),
+                     'use_sim_time': True}],
+    )
+
     def make_robot_group(name: str, x: float, y: float, z: float = 0.4):
         """One fully namespaced robot: robot_state_publisher + delayed spawn
         + its own ros_gz_bridge instance."""
-        bridge_yaml = PathJoinSubstitution([pkg_pguard, 'config', f'bridge_{name}.yaml'])
+        bridge_yaml = render_template_config(Path(get_package_share_directory('my_pguard_bot')) / 'config' / 'bridge_pearlguard1.yaml', name)
         robot_description = {
             'robot_description': ParameterValue(
                 Command(['xacro ', xacro_file, ' namespace:=', name]),
@@ -122,6 +141,7 @@ def generate_launch_description():
         gz_resource_path,
         gz_server,
         gz_gui,
+        clock_bridge,
         robot1,
         robot2
     ]
