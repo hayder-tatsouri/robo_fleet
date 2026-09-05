@@ -119,6 +119,17 @@ class FleetStateManager:
         self._running = False
         self._recv_thread = None
         self._reconnect_thread = None
+        self._connect_lock = threading.Lock()
+
+    def _close_ws(self):
+        """Close any active rosbridge websocket without leaving a stale socket behind."""
+        ws = self.ws
+        self.ws = None
+        if ws is not None:
+            try:
+                ws.close()
+            except Exception:
+                pass
 
     def start(self, robot_ids=None, groups=None, ws_url="ws://localhost:9090"):
         """
@@ -166,35 +177,37 @@ class FleetStateManager:
     def stop(self):
         """Stop the manager and close connection."""
         self._running = False
-        if self.ws:
-            try:
-                self.ws.close()
-            except:
-                pass
-            self.ws = None
+        self._close_ws()
 
     def _connect_and_subscribe(self):
         """Connect to rosbridge and subscribe to all robot topics."""
-        try:
-            self.ws = websocket.create_connection(self.ws_url, timeout=15)
+        with self._connect_lock:
+            self._close_ws()
+            try:
+                self.ws = websocket.create_connection(self.ws_url, timeout=15)
 
-            # Subscribe to all topics for all robots
-            for robot_id in self.robots:
-                topics = [
-                    (f"/{robot_id}/odometry/filtered", "nav_msgs/msg/Odometry"),
-    (f"/{robot_id}/scan", "sensor_msgs/msg/LaserScan"),
-                ]
-                for topic, msg_type in topics:
-                    self.ws.send(json.dumps({
-                        "op": "subscribe",
-                        "topic": topic,
-                        "type": msg_type,
-                        "throttle_rate": 2,
-                        "queue_length": 1,
-                    }))
+                # Subscribe to all topics for all robots
+                for robot_id in self.robots:
+                    topics = [
+                        (f"/{robot_id}/odometry/filtered", "nav_msgs/msg/Odometry"),
+                        (f"/{robot_id}/scan", "sensor_msgs/msg/LaserScan"),
+                    ]
+                    for topic, msg_type in topics:
+                        try:
+                            self.ws.send(json.dumps({
+                                "op": "subscribe",
+                                "topic": topic,
+                                "type": msg_type,
+                                "throttle_rate": 2,
+                                "queue_length": 1,
+                            }))
+                        except Exception:
+                            self._close_ws()
+                            raise
 
-        except Exception as e:
-            print(f"  FleetStateManager: connection failed ({e})")
+            except Exception as e:
+                self._close_ws()
+                print(f"  FleetStateManager: connection failed ({e})")
 
     def _recv_loop(self):
         """Background thread: receive messages and update state cache."""
@@ -211,6 +224,7 @@ class FleetStateManager:
                 continue
             except Exception:
                 if self._running:
+                    self._close_ws()
                     time.sleep(1)
                     self._connect_and_subscribe()
 

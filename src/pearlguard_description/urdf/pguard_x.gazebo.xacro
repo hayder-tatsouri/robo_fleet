@@ -3,7 +3,13 @@
 <xacro:arg name="namespace" default=""/>
 
 <gazebo reference="$(arg namespace)/base_link">
-  <material>Gazebo/Orange</material>
+  <visual>
+    <material>
+      <ambient>0.25 0.25 0.25 1</ambient>
+      <diffuse>0.25 0.25 0.25 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+    </material>
+  </visual>
 </gazebo>
 
 <!-- 4WD differential drive (replaces Classic skid_steer + ros_control) -->

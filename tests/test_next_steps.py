@@ -52,6 +52,28 @@ def fleet_manager():
 # 1. COLLISION PREDICTOR TESTS
 # ═══════════════════════════════════════════
 
+class TestFleetStateStability:
+    @patch('coordination.fleet_state.websocket.create_connection')
+    def test_reconnect_closes_previous_socket_before_reopening(self, mock_create):
+        """A reconnect should close the stale socket before creating a new one."""
+        old_ws = MagicMock()
+        new_ws = MagicMock()
+        mock_create.side_effect = [old_ws, new_ws]
+
+        manager = FleetStateManager.__new__(FleetStateManager)
+        manager.robots = {"tb1": RobotState("tb1")}
+        manager.groups = {"default": ["tb1"]}
+        manager._running = True
+        manager.ws = old_ws
+        manager.ws_url = "ws://localhost:9090"
+
+        manager._connect_and_subscribe()
+
+        old_ws.close.assert_called_once()
+        assert manager.ws is new_ws
+        assert mock_create.call_count == 2
+
+
 class TestCollisionPredictor:
     def test_no_collision_stationary(self, fleet_manager):
         """Stationary robots far apart = no collision."""
