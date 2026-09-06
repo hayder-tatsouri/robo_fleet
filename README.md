@@ -7,17 +7,16 @@ The project simulates the **Enova site at Technopole de Sousse / Novation City**
 The system combines:
 
 * 🌍 A realistic simulation of the Enova site generated from OpenStreetMap data
-* 🤖 Multiple PearlGuard security robots
+* 🤖 **Four PearlGuard security robots**
 * 🧭 Autonomous navigation using **Nav2**
 * 📡 Multi-sensor localization using **RTK GPS, IMU, LiDAR, and wheel odometry**
 * 🗺️ Multi-robot navigation in a shared environment
-* 🧠 An **AI multi-agent system** for fleet supervision and coordination
+* 🧠 **Hybrid AI fleet control**, combining direct tool execution with multi-agent reasoning
 * 🔌 **Model Context Protocol (MCP)** for AI-to-robot interaction
 * 💬 An integrated **AI chatbot** for natural-language fleet control
 * 📊 A live dashboard for monitoring and controlling the fleet
 
 ---
-
 ## 📸 The PearlGuard Robot
 
 The simulated robot is based on the **PearlGuard / PGuard outdoor security robot developed by Enova Robotics**.
@@ -39,140 +38,70 @@ The simulation uses the real PearlGuard CAD meshes and reproduces its main sensi
 The project is divided into two tightly connected layers:
 
 ```text
-                    ┌──────────────────────────────┐
-                    │       AI Multi-Agent Layer   │
-                    │                              │
-                    │ Supervisor + Specialist     │
-                    │ Agents + MCP + Chatbot      │
-                    └──────────────┬───────────────┘
-                                   │
-                                   ▼
-                    ┌──────────────────────────────┐
-                    │       Fleet Management       │
-                    │                              │
-                    │ Navigation • Monitoring      │
-                    │ Planning • Collision • Queue│
-                    └──────────────┬───────────────┘
-                                   │
-                                   ▼
-                    ┌──────────────────────────────┐
-                    │           ROS 2              │
-                    │                              │
-                    │ Gazebo • EKF • Nav2 • TF2   │
-                    └──────────────┬───────────────┘
-                                   │
-                    ┌──────────────┴──────────────┐
-                    ▼                             ▼
-             ┌─────────────┐               ┌─────────────┐
-             │ PearlGuard 1│               │ PearlGuard 2│
-             │             │               │             │
-             │ LiDAR       │               │ LiDAR       │
-             │ RTK GPS     │               │ RTK GPS     │
-             │ IMU         │               │ IMU         │
-             │ Odometry    │               │ Odometry    │
-             └─────────────┘               └─────────────┘
+                         ┌──────────────────────────────┐
+                         │       AI Fleet Layer         │
+                         │                              │
+                         │   Natural Language Input     │
+                         └──────────────┬───────────────┘
+                                        │
+                       ┌────────────────┴────────────────┐
+                       │                                 │
+                 Simple Command                    Complex Mission
+                       │                                 │
+                       ▼                                 ▼
+              ┌─────────────────┐              ┌──────────────────┐
+              │  Direct Tool    │              │ Multi-Agent      │
+              │  Execution      │              │ Reasoning Layer  │
+              │                 │              │                  │
+              │ Exact MCP Tool  │              │ Supervisor       │
+              │ Call            │              │ + Specialists    │
+              └────────┬────────┘              └────────┬─────────┘
+                       │                                │
+                       └────────────────┬───────────────┘
+                                        ▼
+                         ┌──────────────────────────────┐
+                         │       Fleet Management       │
+                         │                              │
+                         │ Navigation • Monitoring      │
+                         │ Planning • Collision • Queue │
+                         └──────────────┬───────────────┘
+                                        │
+                                        ▼
+                         ┌──────────────────────────────┐
+                         │            ROS 2             │
+                         │                              │
+                         │ Gazebo • EKF • Nav2 • TF2   │
+                         └──────────────┬───────────────┘
+                                        │
+                 ┌──────────┬───────────┼───────────┐
+                 ▼          ▼           ▼           ▼
+          ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+          │PearlGuard│ │PearlGuard│ │PearlGuard│ │PearlGuard│
+          │    1     │ │    2     │ │    3     │ │    4     │
+          │          │ │          │ │          │ │          │
+          │ LiDAR    │ │ LiDAR    │ │ LiDAR    │ │ LiDAR    │
+          │ RTK GPS  │ │ RTK GPS  │ │ RTK GPS  │ │ RTK GPS  │
+          │ IMU      │ │ IMU      │ │ IMU      │ │ IMU      │
+          │ Odometry │ │ Odometry │ │ Odometry │ │ Odometry │
+          └──────────┘ └──────────┘ └──────────┘ └──────────┘
 ```
+
+The AI layer uses a **hybrid execution strategy**. Simple and deterministic commands are executed directly through the appropriate MCP tool, avoiding unnecessary multi-agent reasoning. More complex missions are routed through the multi-agent architecture, where specialized agents collaborate to plan and execute the required fleet operations.
 
 ---
 
-# 🌍 1. ROS 2 Simulation & Robot Platform
+# 🤖🤖🤖🤖 1.3 Multi-Robot Simulation
 
-## 1.1 Simulating the Enova Site from OpenStreetMap
-
-Instead of creating an artificial environment manually, the project reconstructs the **Technopole de Sousse / Novation City** environment from real geographic data.
-
-The environment is generated directly from **OpenStreetMap** using the Overpass API.
-
-The origin of the local coordinate system is:
-
-```text
-Latitude:  35.8173
-Longitude: 10.5912
-```
-
-The map-generation pipeline consists of three main scripts:
-
-| File                                       | Description                                                                                                                                            |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/my_pguard_bot/scripts/fetch_osm.py`   | Queries the Overpass API for buildings, roads, and named locations, projects the data into a local ENU frame, and generates the building and POI data. |
-| `src/my_pguard_bot/scripts/build_world.py` | Combines the generated OSM buildings with the Gazebo world template.                                                                                   |
-| `src/my_pguard_bot/scripts/build_map.py`   | Generates a Nav2 occupancy grid from the environment.                                                                                                  |
-
-The generated environment uses a three-level representation:
-
-* **Buildings → LETHAL**
-* **Off-road / grass → NO_INFORMATION**
-* **Roads → FREE**
-
-The resulting map is approximately **1200 × 1200 m** with a resolution of **1 m/cell**.
-
-### 🗺️ Generated Novation City Map
-
-<p align="center">
-  <img src="docs/images/novation_city_map.png" width="800" />
-</p>
-
-The generated map is then used by **Nav2** for autonomous navigation.
-
-More details:
-
-* `docs/MAP_GENERATION.md`
-* `docs/COSTMAP.md`
-
----
-
-# 🤖 1.2 The PearlGuard Robot
-
-The project initially used a simplified PGuard-like model before integrating the more realistic PearlGuard model.
-
-### Custom PGuard-like Model
-
-Located in:
-
-```text
-src/my_pguard_bot/description/
-```
-
-The model contains:
-
-* Simplified chassis
-* Turret
-* Beacon
-* Four driven wheels
-* RTK GNSS
-* IMU
-* Four ultrasonic rangefinders
-* Forward-facing camera
-
-### Realistic PearlGuard Model
-
-The final simulation uses the more realistic **PearlGuard model** located in:
-
-```text
-src/pearlguard_description/
-```
-
-It uses actual PGuard CAD meshes and includes:
-
-* **VLP-16 3D LiDAR**
-* **RTK GPS**
-* **IMU**
-* **Differential-drive odometry**
-
-This model is used by the multi-robot simulation.
-
----
-
-# 🤖🤖 1.3 Multi-Robot Simulation
-
-The system currently runs **two independent PearlGuard robots**:
+The system currently runs **four independent PearlGuard robots**:
 
 ```text
 pearlguard1
 pearlguard2
+pearlguard3
+pearlguard4
 ```
 
-The launch architecture is designed to be easily extended to additional robots by adding them to the robot configuration.
+The launch architecture is designed around a reusable robot configuration, allowing the fleet to be extended without maintaining separate navigation and localization configuration files for every robot.
 
 Each robot is fully namespaced to prevent topic and TF collisions.
 
@@ -188,6 +117,16 @@ For example:
 /pearlguard2/scan
 /pearlguard2/odometry
 /pearlguard2/navigate_to_pose
+
+/pearlguard3/cmd_vel
+/pearlguard3/scan
+/pearlguard3/odometry
+/pearlguard3/navigate_to_pose
+
+/pearlguard4/cmd_vel
+/pearlguard4/scan
+/pearlguard4/odometry
+/pearlguard4/navigate_to_pose
 ```
 
 ### 📡 Sensors
@@ -203,7 +142,7 @@ The sensor measurements are combined using a **dual-EKF localization architectur
 
 ---
 
-## 🧭 1.4 Navigation with Nav2
+# 🧭 1.4 Navigation with Nav2
 
 Each robot runs its own namespaced **Nav2 stack**, including:
 
@@ -215,121 +154,208 @@ Each robot runs its own namespaced **Nav2 stack**, including:
 * Behavior tree navigation
 * TF transforms
 
-The configuration is separated for each robot:
+The fleet uses a **shared configuration architecture** rather than maintaining a separate YAML file for every robot.
+
+The Nav2 and EKF configurations are based on a common configuration:
 
 ```text
-config/nav2_params_pearlguard1.yaml
-config/nav2_params_pearlguard2.yaml
-
-config/ekf_pearlguard1.yaml
-config/ekf_pearlguard2.yaml
+config/nav2_params_pearlguard.yaml
+config/ekf_pearlguard.yaml
 ```
 
-### 🖥️ Two-Robot Navigation in RViz
+The configuration is written using robot-specific namespaces so that the same configuration structure can be reused for all four robots:
+
+```text
+/pearlguard1/...
+/pearlguard2/...
+/pearlguard3/...
+/pearlguard4/...
+```
+
+This avoids duplicating essentially identical configuration files while keeping every robot's topics, frames, localization, and navigation components isolated.
+
+### 🖥️ Four-Robot Navigation in RViz
 
 <p align="center">
-  <img src="docs/images/two_pearlguard_rviz.png" width="850" />
+  <img src="docs/images/four_pearlguard_rviz.png" width="850" />
 </p>
 
-Both robots can navigate independently within the same simulated environment while maintaining separate localization and navigation stacks.
+All four robots can navigate independently within the same simulated environment while maintaining separate localization and navigation stacks.
 
 ---
 
 # 🧩 1.5 Launch Architecture
 
-| Launch file                     | Description                                                                    |
-| ------------------------------- | ------------------------------------------------------------------------------ |
-| `launch/full_stack.launch.py`   | Main entry point: simulation + localization + Nav2 for both robots.            |
-| `launch/sim.launch.py`          | Starts Gazebo, robot state publishers, robot spawning, and ROS-Gazebo bridges. |
-| `launch/localization.launch.py` | Starts the dual-EKF localization system for each robot.                        |
-| `launch/robofleet.launch.py`    | Starts the fleet topic adapter and rosbridge WebSocket.                        |
-| `launch/patrol.launch.py`       | Runs GPS-based perimeter patrol.                                               |
-| `launch/viz.launch.py`          | Starts the Foxglove bridge for visualization.                                  |
+| Launch file                     | Description                                                                            |
+| ------------------------------- | -------------------------------------------------------------------------------------- |
+| `launch/full_stack.launch.py`   | Main entry point: simulation + localization + Nav2 for all four robots.                |
+| `launch/sim.launch.py`          | Starts Gazebo, robot state publishers, robot spawning, and ROS-Gazebo bridges.         |
+| `launch/localization.launch.py` | Starts the dual-EKF localization system for all robots using the shared configuration. |
+| `launch/robofleet.launch.py`    | Starts the fleet topic adapter and rosbridge WebSocket.                                |
+| `launch/patrol.launch.py`       | Runs GPS-based perimeter patrol.                                                       |
+| `launch/viz.launch.py`          | Starts the Foxglove bridge for visualization.                                          |
 
 ---
 
-# 🧠 2. AI Multi-Agent Fleet Layer & MCP
+# 🧠 2. AI Fleet Layer & MCP
 
 The second major component of the project is an **AI-driven fleet management system**.
 
 The `mcp_server/` package exposes ROS 2 fleet operations as **Model Context Protocol (MCP) tools**, allowing an AI system to interact directly with the robot fleet.
 
-The AI layer is not simply a monitoring interface — it is part of the core fleet-control architecture.
+The AI architecture uses **two execution modes depending on the complexity of the user's request**.
 
-It allows users to interact with the fleet using **natural language**.
+### Simple Commands — Direct Tool Execution
+
+For simple, deterministic commands where the required operation is clear, the system **directly calls the corresponding MCP tool** without invoking the multi-agent reasoning layer.
 
 For example:
 
 ```text
+User:
+"Send PearlGuard 2 to coordinates 25, -112."
+
+        ↓
+
+Chatbot / Tool Selection
+
+        ↓
+
+navigate_to_pose(...)
+
+        ↓
+
+ROS 2 / Nav2
+
+        ↓
+
+PearlGuard 2
+```
+
+Other examples include:
+
+```text
 "Where is PearlGuard 1?"
+→ get_robot_position
+
+"Check the battery of PearlGuard 3."
+→ get_battery_level
+
+"Stop PearlGuard 4."
+→ stop_robot
 
 "Send PearlGuard 2 to the north entrance."
-
-"Check the battery level of the fleet."
-
-"Are there any obstacles near PearlGuard 1?"
-
-"Assign the nearest robot to this location."
-
-"Stop all robots."
+→ navigate_to_pose / go_to_location
 ```
+
+This direct execution path reduces unnecessary reasoning and provides a faster and more predictable response for straightforward operations.
+
+---
+
+### Complex Missions — Multi-Agent Reasoning
+
+When a request involves **planning, task allocation, multiple robots, constraints, optimization, or coordination**, the system activates the multi-agent layer.
+
+For example:
+
+```text
+User:
+
+"Secure the site by assigning the most suitable robots
+to patrol the entrances while avoiding conflicts and
+considering their current positions and battery levels."
+
+        ↓
+
+AI Supervisor
+
+        ↓
+
+┌───────────────┬───────────────┬────────────────┐
+│ Planning      │ Monitoring    │ Collision      │
+│ Agent         │ Agent         │ Agent          │
+└───────┬───────┴───────┬───────┴───────┬────────┘
+        │               │               │
+        └───────────────┼───────────────┘
+                        ▼
+                   MCP Tools
+                        │
+                        ▼
+                     ROS 2
+                        │
+                ┌───────┼───────┐
+                ▼       ▼       ▼
+              PG1     PG2     PG3     PG4
+```
+
+The multi-agent system allows the fleet to reason about the mission, divide it into subtasks, select appropriate robots, check constraints, and execute the resulting plan.
 
 ---
 
 # 🧠 2.1 Multi-Agent Architecture
 
-The AI system uses a **supervisor + specialist agent architecture**.
+The AI system uses a **supervisor + specialist agent architecture** for complex missions.
 
 ```text
-                    User
-                     │
-                     ▼
-              ┌──────────────┐
-              │   Chatbot    │
-              └──────┬───────┘
-                     │
-                     ▼
-             ┌───────────────┐
-             │   Supervisor  │
-             │      Agent    │
-             └───────┬───────┘
-                     │
-       ┌─────────────┼─────────────┐
-       ▼             ▼             ▼
- Navigation      Monitoring     Planning
-   Agent           Agent          Agent
-       │             │             │
-       └─────────────┼─────────────┘
-                     ▼
-                  MCP Tools
-                     │
-                     ▼
-                   ROS 2
-                     │
-             ┌───────┴───────┐
-             ▼               ▼
-        PearlGuard 1     PearlGuard 2
+                         User
+                          │
+                          ▼
+                   ┌─────────────┐
+                   │   Chatbot   │
+                   └──────┬──────┘
+                          │
+                  Complex Mission?
+                     /          \
+                   No            Yes
+                   │              │
+                   ▼              ▼
+             Direct MCP      ┌──────────────┐
+                Tool         │  Supervisor  │
+                Call         │     Agent    │
+                             └──────┬───────┘
+                                    │
+              ┌─────────────┬──────┼───────────┬─────────────┐
+              ▼             ▼      ▼           ▼             ▼
+         Navigation    Monitoring Planning  Collision     Queue
+           Agent         Agent      Agent      Agent       Agent
+              │             │        │           │           │
+              └─────────────┴────────┼───────────┴───────────┘
+                                     ▼
+                                MCP Tools
+                                     │
+                                     ▼
+                                   ROS 2
+                                     │
+                        ┌────────────┼────────────┐
+                        ▼            ▼            ▼
+                       PG1          PG2          PG3          PG4
 ```
 
-The supervisor determines which specialist agent should handle a request.
+The **supervisor is only used when the mission requires multi-step reasoning or coordination**.
 
-Each specialist agent has its own tools and system prompt.
+Each specialist agent has its own role, system prompt, and tools.
+
+This separation allows simple commands to remain lightweight while complex missions can benefit from specialized reasoning.
 
 ---
 
 # 🤖 2.2 The Agents
 
+The multi-agent layer currently contains specialized agents responsible for different aspects of fleet management:
+
 | Agent                       | Role                                               | Main Tools                                                       |
 | --------------------------- | -------------------------------------------------- | ---------------------------------------------------------------- |
-| **Navigation Agent**        | Moves robots to coordinates and waypoints          | `navigate_to_pose`, `navigate_waypoints`                         |
+| **Navigation Agent**        | Plans and executes robot navigation                | `navigate_to_pose`, `navigate_waypoints`                         |
 | **Monitoring Agent**        | Monitors robot and fleet state                     | `get_robot_position`, `get_fleet_status`, `get_battery_level`    |
 | **Control Agent**           | Performs emergency and direct control operations   | `stop_robot`, `emergency_stop`                                   |
 | **Collision Agent**         | Detects and predicts possible collisions           | `check_obstacles`, `predict_collisions`                          |
-| **Planning Agent**          | Assigns and optimizes tasks                        | `assign_tasks`, `dispatch_tasks`, `replan`                       |
+| **Planning Agent**          | Assigns and optimizes fleet tasks                  | `assign_tasks`, `dispatch_tasks`, `replan`                       |
 | **Queue Agent**             | Manages the task queue                             | `add_task_to_queue`, `start_auto_dispatch`, `stop_auto_dispatch` |
 | **Dashboard Agent**         | Controls dashboard services                        | `start_dashboard`, `stop_dashboard`                              |
 | **Natural Language Agent**  | Handles named locations and nearest-robot requests | `list_locations`, `go_to_location`, `send_nearest_to`            |
 | **Map Visualization Agent** | Provides fleet position visualization              | `get_map_with_robots`                                            |
+
+These agents are not necessarily invoked for every user request. They are used selectively when their specialization is required by the mission.
 
 ---
 
@@ -337,7 +363,7 @@ Each specialist agent has its own tools and system prompt.
 
 The project includes a live web dashboard that provides:
 
-* Real-time robot positions
+* Real-time positions of all four robots
 * Fleet status
 * Battery information
 * Robot control
@@ -354,25 +380,21 @@ The project includes a live web dashboard that provides:
 
 The chatbot provides a natural-language interface to the fleet.
 
-Instead of manually calling ROS 2 commands, users can interact with the robots conversationally.
+Depending on the request, the chatbot can either directly execute a specific fleet operation or invoke the multi-agent reasoning layer for more complex missions.
 
-For example:
+### Simple command
 
 ```text
 User:
-"Send the nearest robot to the Enova building."
+"Send PearlGuard 3 to the Enova building."
 
         ↓
 
-AI Supervisor
+Direct MCP Tool Call
 
         ↓
 
-Planning / Navigation Agent
-
-        ↓
-
-MCP Tool
+navigate_to_pose / go_to_location
 
         ↓
 
@@ -380,10 +402,48 @@ ROS 2 / Nav2
 
         ↓
 
-PearlGuard
+PearlGuard 3
 ```
 
-The dashboard therefore acts as both a **fleet monitoring interface and an AI command center**.
+### Complex mission
+
+```text
+User:
+"Assign the best robots to patrol the four entrances,
+consider their current positions and battery levels,
+and avoid potential conflicts."
+
+        ↓
+
+AI Supervisor
+
+        ↓
+
+Planning Agent
+        +
+Monitoring Agent
+        +
+Collision Agent
+        +
+Navigation Agent
+
+        ↓
+
+MCP Tools
+
+        ↓
+
+ROS 2 / Nav2
+
+        ↓
+
+PearlGuard 1 ─┐
+PearlGuard 2 ─┤
+PearlGuard 3 ─┼── Coordinated Fleet Mission
+PearlGuard 4 ─┘
+```
+
+The dashboard therefore acts as both a **fleet monitoring interface and an AI command center**, with a hybrid control architecture that combines deterministic tool execution with agentic reasoning.
 
 ---
 
@@ -437,7 +497,7 @@ This allows the system to perform:
 
 ---
 
-# 🛠️ 3. Quick Start
+# 🚀 3. Quick Start
 
 The complete ROS 2 stack runs **directly on the host system**.
 
@@ -497,9 +557,11 @@ This starts:
 * Novation City environment
 * PearlGuard 1
 * PearlGuard 2
+* PearlGuard 3
+* PearlGuard 4
 * Robot state publishers
 * Dual-EKF localization
-* Nav2 for both robots
+* Nav2 for all four robots
 * Map server
 * Required TF transforms
 
@@ -533,13 +595,13 @@ Start the dashboard:
 ```bash
 python3 start_dashboard.py \
   --rosbridge localhost \
-  --robots pearlguard1 pearlguard2 \
+  --robots pearlguard1 pearlguard2 pearlguard3 pearlguard4 \
   --open
 ```
 
 The dashboard provides the main interface for:
 
-* Monitoring both robots
+* Monitoring all four robots
 * Sending navigation commands
 * Managing tasks
 * Viewing fleet status
@@ -549,97 +611,41 @@ The dashboard provides the main interface for:
 
 # 🤖 3.5 Use the AI Fleet Controller
 
-The AI chatbot is an integral part of the system.
+The AI chatbot supports both **direct tool execution** and **multi-agent fleet reasoning**.
 
-Once the dashboard is running, commands can be given using natural language.
+### Direct commands
 
-Examples:
+Straightforward commands can be executed directly through the corresponding MCP tool:
 
 ```text
 Where is pearlguard1?
 
 Send pearlguard2 to coordinates 25, -112.
 
-What is the current fleet status?
+Check the battery level of pearlguard3.
 
-Check obstacles near pearlguard1.
+Stop pearlguard4.
 
-Send the nearest robot to the Enova building.
-
-Stop pearlguard1.
+Send pearlguard1 to the Enova building.
 ```
 
-The chatbot interprets the request and uses the appropriate AI agent and MCP tools to interact with the ROS 2 fleet.
+### Complex missions
 
----
-
-# 📁 4. Repository Structure
+More advanced requests activate the multi-agent architecture:
 
 ```text
-robo_fleet/
-│
-├── mcp_server/
-│   ├── server.py
-│   ├── index.py
-│   ├── agents/
-│   ├── graph/
-│   ├── tools/
-│   ├── ros/
-│   └── coordination/
-│
-├── src/
-│   ├── my_pguard_bot/
-│   │   ├── worlds/
-│   │   ├── maps/
-│   │   ├── config/
-│   │   ├── launch/
-│   │   └── scripts/
-│   │
-│   └── pearlguard_description/
-│       ├── meshes/
-│       ├── urdf/
-│       └── ...
-│
-├── dashboard/
-│
-├── docs/
-│   ├── images/
-│   │   ├── pearlguard_real_1.jpg
-│   │   ├── pearlguard_real_2.jpg
-│   │   ├── pearlguard_real_3.jpg
-│   │   ├── novation_city_map.png
-│   │   ├── two_pearlguard_rviz.png
-│   │   └── fleet_dashboard.png
-│   │
-│   ├── MAP_GENERATION.md
-│   ├── COSTMAP.md
-│   ├── PROJECT.md
-│   └── outdoor-sim-guide.md
-│
-├── start_dashboard.py
-├── run.py
-├── run_tests.py
-├── SETUP.md
-└── README.md
+Assign the most suitable robots to patrol
+the four entrances while considering their
+battery levels and avoiding conflicts.
 ```
 
----
-
-# 📚 Documentation
-
-Additional documentation:
-
-* `docs/MAP_GENERATION.md` — OpenStreetMap → Gazebo world → Nav2 map
-* `docs/COSTMAP.md` — Nav2 costmap configuration
-* `docs/PROJECT.md` — project architecture and implementation
-* `docs/outdoor-sim-guide.md` — outdoor simulation guide
-* `SETUP.md` — installation and setup instructions
+The system determines whether the request can be handled by a direct tool call or requires the **supervisor and specialist agents** to reason about the mission.
 
 ---
 
 # 🎯 Project Objective
 
-The goal of **robo_fleet** is to build a complete autonomous security-robot fleet that combines **robotics, navigation, multi-agent AI, and natural-language interaction**.
+The goal of **robo_fleet** is to build a complete autonomous security-robot fleet that combines **robotics, navigation, multi-robot coordination, AI agents, and natural-language interaction**.
 
 The resulting pipeline connects:
 
@@ -656,22 +662,32 @@ Gazebo Simulation
 ROS 2 + Nav2
       │
       ▼
-Multi-Robot Fleet
+Four-Robot Fleet
       │
       ▼
 MCP Interface
       │
       ▼
-AI Multi-Agent System
+AI Fleet Layer
       │
-      ▼
-Natural-Language Chatbot
+      ├────────────── Simple Command
+      │                    │
+      │                    ▼
+      │               Direct Tool
       │
-      ▼
-Fleet Coordination & Control
+      └────────────── Complex Mission
+                           │
+                           ▼
+                    Multi-Agent System
+                           │
+                           ▼
+                  Fleet Coordination
+                           │
+                           ▼
+                    Robot Execution
 ```
 
-The project demonstrates how **ROS 2 autonomous robots can be combined with modern AI agent architectures to create an intelligent multi-robot fleet management system.**
+The project demonstrates a **hybrid AI-robotics architecture** in which deterministic operations are executed directly through tools, while complex fleet missions are handled by a **specialized multi-agent system** capable of planning, task allocation, monitoring, and coordination across multiple autonomous robots.
 
 ---
 
