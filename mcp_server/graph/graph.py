@@ -10,21 +10,15 @@ from agents.react import AGENT_REGISTRY, ALL_AGENT_NAMES, _llm
 from tools.navigation import navigate_to_pose
 from tools.waypoints import navigate_waypoints
 from tools.monitoring import get_robot_position, get_fleet_status, get_battery_level
-from tools.control import stop_robot, emergency_stop
 from tools.obstacles import check_obstacles
 from tools.advanced import (
-    predict_collisions, add_task_to_queue, get_queue, clear_queue,
-    start_auto_dispatch, stop_auto_dispatch,
-    start_dashboard, stop_dashboard, assign_tasks_optimal,
+    predict_collisions, start_dashboard, stop_dashboard, assign_tasks_optimal,
 )
 from tools.coordination import (
     assign_tasks, dispatch_tasks, get_plan, replan,
     set_robot_priority, configure_fleet,
 )
-from tools.natural_language import (
-    list_locations, add_location, remove_location, go_to_location, send_nearest_to,
-)
-from tools.map_viz import get_map_with_robots
+from tools.natural_language import go_to_location
 
 
 MAX_HOPS = 6  # hard cap on supervisor visits per request — safety valve against routing loops
@@ -42,8 +36,6 @@ INTENT_TOOLS = {
     "get_robot_position":    lambda s: get_robot_position(**_pick(s, ("robot_id", "timeout"))),
     "get_fleet_status":      lambda s: get_fleet_status(**_pick(s, ("robot_ids", "timeout"))),
     "get_battery_level":     lambda s: get_battery_level(**_pick(s, ("robot_id", "timeout"))),
-    "stop_robot":            lambda s: stop_robot(**_pick(s, ("robot_id",))),
-    "emergency_stop":        lambda s: emergency_stop(**_pick(s, ("robot_ids",))),
     "check_obstacles":       lambda s: check_obstacles(**_pick(s, ("robot_id", "distance_threshold", "timeout"))),
     "predict_collisions":    lambda s: predict_collisions(**_pick(s, ("buffer_distance", "time_horizon"))),
     "assign_tasks":          lambda s: assign_tasks(**_pick(s, ("tasks", "collision_buffer"))),
@@ -53,18 +45,8 @@ INTENT_TOOLS = {
     "set_robot_priority":    lambda s: set_robot_priority(**_pick(s, ("robot_id", "priority"))),
     "configure_fleet":       lambda s: configure_fleet(**_pick(s, ("robot_ids", "groups", "collision_buffer"))),
     "assign_tasks_optimal":  lambda s: assign_tasks_optimal(**_pick(s, ("tasks",))),
-    "add_task_to_queue":     lambda s: add_task_to_queue(**_pick(s, ("x", "y", "theta", "priority", "group"))),
-    "get_queue":             lambda s: get_queue(),
-    "clear_queue":           lambda s: clear_queue(),
-    "start_auto_dispatch":   lambda s: start_auto_dispatch(),
-    "stop_auto_dispatch":    lambda s: stop_auto_dispatch(),
     "start_dashboard":       lambda s: start_dashboard(**_pick(s, ("port",))),
     "stop_dashboard":        lambda s: stop_dashboard(),
-    "list_locations":        lambda s: list_locations(),
-    "add_location":          lambda s: add_location(**_pick(s, ("name", "x", "y", "description"))),
-    "remove_location":       lambda s: remove_location(**_pick(s, ("name",))),
-    "send_nearest_to":       lambda s: send_nearest_to(**_pick(s, ("location_name", "group", "timeout"))),
-    "get_map_with_robots":   lambda s: get_map_with_robots(**_pick(s, ("robot_ids", "map_width", "map_height", "timeout"))),
 }
 
 INTENT_TO_AGENT = {
@@ -74,8 +56,6 @@ INTENT_TO_AGENT = {
     "get_robot_position": "monitoring_agent",
     "get_fleet_status": "monitoring_agent",
     "get_battery_level": "monitoring_agent",
-    "stop_robot": "control_agent",
-    "emergency_stop": "control_agent",
     "check_obstacles": "collision_agent",
     "predict_collisions": "collision_agent",
     "assign_tasks": "planning_agent",
@@ -85,18 +65,8 @@ INTENT_TO_AGENT = {
     "assign_tasks_optimal": "planning_agent",
     "set_robot_priority": "planning_agent",
     "configure_fleet": "planning_agent",
-    "add_task_to_queue": "queue_agent",
-    "get_queue": "queue_agent",
-    "clear_queue": "queue_agent",
-    "start_auto_dispatch": "queue_agent",
-    "stop_auto_dispatch": "queue_agent",
     "start_dashboard": "dashboard_agent",
     "stop_dashboard": "dashboard_agent",
-    "list_locations": "natural_lang_agent",
-    "add_location": "natural_lang_agent",
-    "remove_location": "natural_lang_agent",
-    "send_nearest_to": "natural_lang_agent",
-    "get_map_with_robots": "map_viz_agent",
 }
 
 

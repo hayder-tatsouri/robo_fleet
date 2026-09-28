@@ -343,17 +343,19 @@ This separation allows simple commands to remain lightweight while complex missi
 
 The multi-agent layer currently contains specialized agents responsible for different aspects of fleet management:
 
-| Agent                       | Role                                               | Main Tools                                                       |
-| --------------------------- | -------------------------------------------------- | ---------------------------------------------------------------- |
-| **Navigation Agent**        | Plans and executes robot navigation                | `navigate_to_pose`, `navigate_waypoints`                         |
-| **Monitoring Agent**        | Monitors robot and fleet state                     | `get_robot_position`, `get_fleet_status`, `get_battery_level`    |
-| **Control Agent**           | Performs emergency and direct control operations   | `stop_robot`, `emergency_stop`                                   |
-| **Collision Agent**         | Detects and predicts possible collisions           | `check_obstacles`, `predict_collisions`                          |
-| **Planning Agent**          | Assigns and optimizes fleet tasks                  | `assign_tasks`, `dispatch_tasks`, `replan`                       |
-| **Queue Agent**             | Manages the task queue                             | `add_task_to_queue`, `start_auto_dispatch`, `stop_auto_dispatch` |
-| **Dashboard Agent**         | Controls dashboard services                        | `start_dashboard`, `stop_dashboard`                              |
-| **Natural Language Agent**  | Handles named locations and nearest-robot requests | `list_locations`, `go_to_location`, `send_nearest_to`            |
-| **Map Visualization Agent** | Provides fleet position visualization              | `get_map_with_robots`                                            |
+| Agent                       | Role                                                     | Main Tools                                                                     |
+| --------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| **Navigation Agent**        | Plans and executes robot navigation, incl. named locations | `navigate_to_pose`, `navigate_waypoints`, `go_to_location`                   |
+| **Monitoring Agent**        | Monitors robot and fleet state                           | `get_robot_position`, `get_fleet_status`, `get_battery_level`                  |
+| **Collision Agent**         | Detects and predicts possible collisions                 | `check_obstacles`, `predict_collisions`                                        |
+| **Planning Agent**          | Assigns and optimizes fleet tasks                        | `assign_tasks`, `dispatch_tasks`, `replan`, `set_robot_priority`               |
+| **Dashboard Agent**         | Controls dashboard services                              | `start_dashboard`, `stop_dashboard`                                            |
+
+> **Note:** Stop/emergency control (`stop_robot`, `emergency_stop`), task-queue management
+> (`add_task_to_queue`, `get_queue`, `clear_queue`, `start_auto_dispatch`, `stop_auto_dispatch`),
+> named-location CRUD and nearest-robot dispatch (`list_locations`, `add_location`,
+> `remove_location`, `send_nearest_to`), and map visualization (`get_map_with_robots`) remain
+> available as **MCP tools**, but are no longer wrapped as supervisor-routed specialist agents.
 
 These agents are not necessarily invoked for every user request. They are used selectively when their specialization is required by the mission.
 
@@ -624,9 +626,13 @@ Send pearlguard2 to coordinates 25, -112.
 
 Check the battery level of pearlguard3.
 
+What is the current fleet status?
+
 Stop pearlguard4.
 
 Send pearlguard1 to the Enova building.
+
+Start the dashboard.
 ```
 
 ### Complex missions

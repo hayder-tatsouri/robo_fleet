@@ -14,13 +14,9 @@ class AgentState(TypedDict):
         "supervisor",
         "navigation_agent",
         "monitoring_agent",
-        "control_agent",
         "collision_agent",
         "planning_agent",
-        "queue_agent",
         "dashboard_agent",
-        "natural_lang_agent",
-        "map_viz_agent",
         "__end__",
     ]
     response: Optional[dict]

@@ -15,18 +15,13 @@ def list_capabilities() -> dict:
         "agents": [
             {
                 "name": "navigation_agent",
-                "description": "Moves robots to coordinates or waypoint sequences",
+                "description": "Moves robots to coordinates, waypoint sequences or named locations",
                 "tools": ["navigate_to_pose(robot_id, x, y, theta)", "navigate_waypoints(robot_id, waypoints)"],
             },
             {
                 "name": "monitoring_agent",
                 "description": "Reports robot positions, battery, and fleet status",
                 "tools": ["get_robot_position(robot_id)", "get_fleet_status(robot_ids)", "get_battery_level(robot_id)", "list_capabilities()"],
-            },
-            {
-                "name": "control_agent",
-                "description": "Stops robots immediately",
-                "tools": ["stop_robot(robot_id)", "emergency_stop(robot_ids)"],
             },
             {
                 "name": "collision_agent",
@@ -39,28 +34,13 @@ def list_capabilities() -> dict:
                 "tools": ["assign_tasks(tasks)", "dispatch_tasks(tasks)", "get_plan()", "replan()", "set_robot_priority()", "configure_fleet()", "assign_tasks_optimal(tasks)"],
             },
             {
-                "name": "queue_agent",
-                "description": "Manages the dispatch task queue",
-                "tools": ["add_task_to_queue()", "get_queue()", "clear_queue()", "start_auto_dispatch()", "stop_auto_dispatch()"],
-            },
-            {
                 "name": "dashboard_agent",
                 "description": "Starts/stops the live visualization",
                 "tools": ["start_dashboard(port)", "stop_dashboard()"],
             },
-            {
-                "name": "natural_lang_agent",
-                "description": "Manages named locations and sends nearest robot",
-                "tools": ["list_locations()", "add_location()", "remove_location()", "go_to_location()", "send_nearest_to()"],
-            },
-            {
-                "name": "map_viz_agent",
-                "description": "Generates ASCII map of robot positions",
-                "tools": ["get_map_with_robots()"],
-            },
         ],
-        "total_agents": 9,
-        "total_tools": 30,
+        "total_agents": 5,
+        "total_tools": 17,
     }
 
 
